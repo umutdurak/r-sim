@@ -592,6 +592,11 @@ pub async fn run_framework() {
     // - Thread scheduling: Rely on RTOS features (e.g., Linux RT patch) for predictable task execution.
     // - External interactions: Minimize non-deterministic I/O or provide mechanisms to make it deterministic.
 
+    // REQ-ERROR-HANDLING: Robust error handling is critical for real-time systems.
+    // The framework aims to provide informative error messages and graceful exits
+    // upon critical failures during configuration, graph construction, or I/O operations.
+    // Future enhancements may include more sophisticated error recovery mechanisms.
+
     loop {
         interval.tick().await;
         current_time += time_step;
