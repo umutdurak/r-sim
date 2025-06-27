@@ -1,0 +1,9 @@
+[package]
+name = "framework"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+petgraph = "0.6"
+# fmi = "0.4.1" # Temporarily commented out due to compilation issues with transitive dependencies # Or the latest compatible version
