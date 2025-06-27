@@ -1,0 +1,385 @@
+[DOCUMENT]
+TITLE: Real-Time Co-Simulation Framework Requirements
+OPTIONS:
+  REQUIREMENT_STYLE: Table
+
+[REQUIREMENT]
+UID: REQ-FRAMEWORK
+TITLE: Real-Time Co-Simulation Framework
+STATEMENT: >
+  The system shall be a real-time co-simulation framework developed in Rust,
+  utilizing the Tokio runtime for asynchronous task management.
+
+[GROUP]
+TITLE: FMU Co-Simulation
+REFINES: REQ-FRAMEWORK
+
+[REQUIREMENT]
+UID: REQ-FMU-SUPPORT
+TITLE: FMU Co-Simulation Support
+STATEMENT: >
+  The framework shall support the co-simulation of Functional Mockup Units (FMUs)
+  compliant with the FMI standard for Co-Simulation.
+REFINES: REQ-FRAMEWORK
+
+[REQUIREMENT]
+UID: REQ-FMU-LOADING
+TITLE: Dynamic FMU Loading
+STATEMENT: >
+  The framework shall be able to dynamically load FMU binaries (.so or .dll) at runtime from a specified path.
+REFINES: REQ-FMU-SUPPORT
+
+[REQUIREMENT]
+UID: REQ-FMI-VERSION
+TITLE: FMI Standard Version
+STATEMENT: >
+  The framework shall support at least FMI 2.0 for Co-Simulation. Support for FMI 3.0 is a future goal.
+REFINES: REQ-FMU-SUPPORT
+
+[/GROUP]
+
+[GROUP]
+TITLE: Scheduling and Execution
+REFINES: REQ-FRAMEWORK
+
+[REQUIREMENT]
+UID: REQ-SCHEDULING
+TITLE: Real-Time Task Scheduling
+STATEMENT: >
+  The framework shall schedule and execute simulation tasks in a pseudo-real-time manner, driven by the Tokio runtime.
+
+[REQUIREMENT]
+UID: REQ-PERIODIC-TASKS
+TITLE: Periodic Task Execution
+STATEMENT: >
+  FMUs and other simulation components (e.g., I/O tasks) shall be scheduled as periodic tasks with user-configurable execution rates.
+REFINES: REQ-SCHEDULING
+
+[REQUIREMENT]
+UID: REQ-TIME-STEP-CONTROL
+TITLE: Simulation Time Step Control
+STATEMENT: >
+  The framework shall allow for user-configurable global simulation time steps,
+  and manage the execution of periodic tasks and FMUs accordingly.
+REFINES: REQ-FRAMEWORK
+
+[REQUIREMENT]
+UID: REQ-MULTI-CORE
+TITLE: Multi-Core / Parallel Execution Support
+STATEMENT: >
+  The framework shall leverage multi-core processors to execute independent
+  simulation tasks and FMUs in parallel, optimizing performance for complex scenarios.
+REFINES: REQ-FRAMEWORK
+
+[REQUIREMENT]
+UID: REQ-DATA-DEPENDENCY
+TITLE: Data Dependency Management
+STATEMENT: >
+  The framework shall manage data dependencies between interconnected simulation components (e.g., FMUs, I/O tasks).
+
+[REQUIREMENT]
+UID: REQ-EXECUTION-ORDER
+TITLE: Automatic Execution Order Inference
+STATEMENT: >
+  Based on the configured data dependencies, the framework shall automatically infer the correct execution order for all tasks within a single time step using topological sorting.
+REFINES: REQ-DATA-DEPENDENCY
+
+[REQUIREMENT]
+UID: REQ-CAUSALITY-RESOLUTION
+TITLE: Causality Problem Resolution
+STATEMENT: >
+  The framework shall detect causal loops (algebraic cycles) in the dependency graph and report them to the user.
+REFINES: REQ-DATA-DEPENDENCY
+
+[REQUIREMENT]
+UID: REQ-MEMORY-BLOCKS
+TITLE: Memory Blocks for Loop Breaking
+STATEMENT: >
+  Causal loops shall be resolvable by configuring specific data links to use a "memory" block, which introduces a one-step delay (z^-1), effectively breaking the cycle.
+REFINES: REQ-CAUSALITY-RESOLUTION
+
+[/GROUP]
+
+[GROUP]
+TITLE: I/O Subsystem
+REFINES: REQ-FRAMEWORK
+
+[REQUIREMENT]
+UID: REQ-IO-SUBSYSTEM
+TITLE: Input/Output Subsystem
+STATEMENT: >
+  The framework shall provide a flexible and extensible I/O subsystem for interaction with hardware and external systems.
+
+[REQUIREMENT]
+UID: REQ-IO-GPIO
+TITLE: GPIO Task
+STATEMENT: >
+  The I/O subsystem shall include a task for digital General-Purpose Input/Output (GPIO) on supported platforms (e.g., Raspberry Pi).
+REFINES: REQ-IO-SUBSYSTEM
+
+[REQUIREMENT]
+UID: REQ-IO-SERIAL
+TITLE: Serial Communication Task
+STATEMENT: >
+  The I/O subsystem shall include a task for serial communication (e.g., UART, RS-232/485) with configurable parameters (baud rate, parity, etc.).
+REFINES: REQ-IO-SUBSYSTEM
+
+[REQUIREMENT]
+UID: REQ-IO-UDP
+TITLE: UDP Communication Task
+STATEMENT: >
+  The I/O subsystem shall include a task for sending and receiving data via the UDP protocol.
+REFINES: REQ-IO-SUBSYSTEM
+
+[REQUIREMENT]
+UID: REQ-IO-ANALOG
+TITLE: Analog Input/Output Tasks
+STATEMENT: >
+  The I/O subsystem shall include tasks for configurable analog input and output,
+  supporting various voltage and current ranges, for interfacing with analog sensors and actuators.
+REFINES: REQ-IO-SUBSYSTEM
+
+[REQUIREMENT]
+UID: REQ-IO-EXTENSIBILITY
+TITLE: Extensible I/O
+STATEMENT: >
+  The I/O subsystem shall be designed with a trait-based API to allow new I/O task types to be added with minimal effort.
+REFINES: REQ-IO-SUBSYSTEM
+
+[REQUIREMENT]
+UID: REQ-IO-INDUSTRIAL-PROTOCOLS
+TITLE: Industrial Communication Protocols
+STATEMENT: >
+  The I/O subsystem shall support common industrial communication protocols
+  (e.g., CAN, EtherCAT, Modbus TCP/RTU) to facilitate integration with
+  a wide range of industrial hardware and control systems.
+REFINES: REQ-IO-SUBSYSTEM
+
+[REQUIREMENT]
+UID: REQ-IO-SYNCHRONIZED
+TITLE: Synchronized I/O
+STATEMENT: >
+  The I/O subsystem shall support synchronized data acquisition and output across
+  multiple channels and different I/O types, ensuring precise timing and correlation
+  of data.
+REFINES: REQ-IO-SUBSYSTEM
+
+[REQUIREMENT]
+UID: REQ-IO-HIGH-SPEED-DAQ
+TITLE: High-Speed Data Acquisition
+STATEMENT: >
+  The I/O subsystem shall be capable of high-speed data acquisition and generation
+  for critical signals, with configurable sampling rates to meet demanding
+  real-time simulation requirements.
+REFINES: REQ-IO-SUBSYSTEM
+
+[REQUIREMENT]
+UID: REQ-IO-HIGH-SPEED-DAQ
+TITLE: High-Speed Data Acquisition
+STATEMENT: >
+  The I/O subsystem shall be capable of high-speed data acquisition and generation
+  for critical signals, with configurable sampling rates to meet demanding
+  real-time simulation requirements.
+REFINES: REQ-IO-SUBSYSTEM
+
+[/GROUP]
+
+[GROUP]
+TITLE: Configuration
+REFINES: REQ-FRAMEWORK
+
+[REQUIREMENT]
+UID: REQ-CONFIGURATION
+TITLE: Simulation Configuration
+STATEMENT: >
+  The entire simulation scenario, including FMUs, task scheduling, data dependencies, and I/O, shall be defined in a single, user-provided configuration file.
+
+[REQUIREMENT]
+UID: REQ-CONFIG-FORMAT
+TITLE: Configuration File Format
+STATEMENT: >
+  The configuration shall use a human-readable, structured format. TOML is the preferred format.
+REFINES: REQ-CONFIGURATION
+
+[/GROUP]
+
+[GROUP]
+TITLE: Simulation Control & Data
+REFINES: REQ-FRAMEWORK
+
+[REQUIREMENT]
+UID: REQ-SIM-LIFECYCLE
+TITLE: Simulation Lifecycle Management
+STATEMENT: >
+  The framework shall provide clear and accessible mechanisms to control the simulation lifecycle,
+  including starting, stopping, pausing, and resuming simulation execution.
+REFINES: REQ-FRAMEWORK
+
+[REQUIREMENT]
+UID: REQ-DATA-LOGGING
+TITLE: Data Logging
+STATEMENT: >
+  The framework shall provide configurable mechanisms for logging simulation data,
+  including FMU variable values and I/O states, to persistent storage.
+  The logging format shall be user-selectable (e.g., CSV, HDF5).
+REFINES: REQ-FRAMEWORK
+
+[REQUIREMENT]
+UID: REQ-REALTIME-MONITORING
+TITLE: Real-time Monitoring
+STATEMENT: >
+  The framework shall provide interfaces or mechanisms for real-time monitoring
+  of simulation progress and key variable values, suitable for visualization
+  or debugging purposes.
+REFINES: REQ-FRAMEWORK
+
+[REQUIREMENT]
+UID: REQ-TIME-SYNCHRONIZATION
+TITLE: Time Synchronization
+STATEMENT: >
+  The framework shall provide mechanisms to synchronize simulation time with wall-clock time,
+  or to allow running simulations faster or slower than real-time, as configured by the user.
+REFINES: REQ-FRAMEWORK
+
+[/GROUP]
+
+[GROUP]
+TITLE: Performance & Robustness
+REFINES: REQ-FRAMEWORK
+
+[REQUIREMENT]
+UID: REQ-DETERMINISTIC-EXECUTION
+TITLE: Deterministic Execution
+STATEMENT: >
+  For a given simulation configuration and identical inputs, the framework shall
+  produce deterministic and repeatable simulation results across multiple runs.
+REFINES: REQ-FRAMEWORK
+
+[REQUIREMENT]
+UID: REQ-ERROR-HANDLING
+TITLE: Error Handling and Recovery
+STATEMENT: >
+  The framework shall implement robust error handling for FMU execution failures,
+  I/O errors, and other runtime issues, providing options for graceful shutdown
+  or configurable recovery mechanisms.
+REFINES: REQ-FRAMEWORK
+
+[REQUIREMENT]
+UID: REQ-PERFORMANCE-METRICS
+TITLE: Performance Metrics
+STATEMENT: >
+  The framework shall be capable of reporting key performance metrics, such as
+  task execution times, jitter, and CPU utilization, to aid in performance analysis
+  and optimization.
+REFINES: REQ-FRAMEWORK
+
+[REQUIREMENT]
+UID: REQ-HARD-REALTIME
+TITLE: Hard Real-Time Capability
+STATEMENT: >
+  The framework shall be designed to support hard real-time execution on a
+  Linux operating system with a real-time (RT) patch, ensuring deterministic
+  task execution within defined deadlines.
+REFINES: REQ-FRAMEWORK
+
+[/GROUP]
+
+[GROUP]
+TITLE: Usability & Extensibility
+REFINES: REQ-FRAMEWORK
+
+[REQUIREMENT]
+UID: REQ-CLI
+TITLE: Command-Line Interface (CLI)
+STATEMENT: >
+  The framework shall provide a user-friendly command-line interface (CLI) for
+  configuring, running, and monitoring simulations.
+REFINES: REQ-FRAMEWORK
+
+[REQUIREMENT]
+UID: REQ-CUSTOM-COMPONENT-INTEGRATION
+TITLE: Custom Component Integration
+STATEMENT: >
+  The framework shall provide a clear and well-documented API for users to
+  integrate their own custom simulation components (e.g., written in Rust)
+  alongside FMUs.
+REFINES: REQ-FRAMEWORK
+
+[REQUIREMENT]
+UID: REQ-WEB-INTERFACE
+TITLE: Web-Based Management Interface
+STATEMENT: >
+  The framework shall provide an optional web-based interface for remote management
+  and monitoring of running simulations. This interface shall allow users to
+  control simulation lifecycle (start, stop, pause, resume) and view real-time data.
+  Furthermore, it shall present the current running tasks, FMUs, and their data
+  dependencies, potentially with a graphical representation such as a causal block
+  diagram, leveraging concepts from SysML v2 internal block diagrams.
+REFINES: REQ-FRAMEWORK
+
+[/GROUP]
+
+[GROUP]
+TITLE: Toolchain Integration & Workflow
+REFINES: REQ-FRAMEWORK
+
+[REQUIREMENT]
+UID: REQ-MODEL-INTEGRATION
+TITLE: Integration with Modeling Environments
+STATEMENT: >
+  The framework shall provide clear guidelines and utilities for integrating
+  models developed in external modeling environments (e.g., Simulink, AMESim)
+  by supporting their export as FMUs.
+REFINES: REQ-FRAMEWORK
+
+[REQUIREMENT]
+UID: REQ-ONLINE-PARAMETER-TUNING
+TITLE: Online Parameter Access and Tuning
+STATEMENT: >
+  The framework shall provide mechanisms to access and modify simulation parameters
+  during runtime, enabling online tuning and calibration of models and I/O configurations.
+REFINES: REQ-FRAMEWORK
+
+[REQUIREMENT]
+UID: REQ-SCENARIO-MANAGEMENT
+TITLE: Simulation Scenario Management
+STATEMENT: >
+  The framework shall provide capabilities for defining, saving, loading, and
+  managing different simulation scenarios, including variations in FMU parameters,
+  I/O configurations, and test sequences.
+REFINES: REQ-FRAMEWORK
+
+[/GROUP]
+
+[GROUP]
+TITLE: Advanced Simulation Features
+REFINES: REQ-FRAMEWORK
+
+[REQUIREMENT]
+UID: REQ-FAULT-INJECTION
+TITLE: Fault Injection Capabilities
+STATEMENT: >
+  The framework shall provide mechanisms to inject faults (e.g., sensor failures,
+  communication errors, component malfunctions) into the simulation during runtime
+  to support robust testing and validation.
+REFINES: REQ-FRAMEWORK
+
+[REQUIREMENT]
+UID: REQ-XIL-SUPPORT
+TITLE: X-in-the-Loop (XiL) Support
+STATEMENT: >
+  The framework shall explicitly support various X-in-the-Loop (XiL) testing methodologies,
+  including Model-in-the-Loop (MIL), Software-in-the-Loop (SIL), and Hardware-in-the-Loop (HIL),
+  by providing appropriate interfaces and functionalities for each.
+REFINES: REQ-FRAMEWORK
+
+[REQUIREMENT]
+UID: REQ-DISTRIBUTED-SIMULATION
+TITLE: Distributed Simulation Support
+STATEMENT: >
+  The framework shall support the distribution of simulation tasks and FMUs
+  across multiple networked computing nodes to enable scaling for large and
+  complex simulation scenarios.
+REFINES: REQ-FRAMEWORK
+
+[/GROUP]
