@@ -52,9 +52,15 @@ impl SimulationTask for FmuTask {
     }
 }
 
+// Represents the type of dependency between tasks
+pub enum DependencyType {
+    Direct(String), // Direct data flow, e.g., "output_to_input"
+    MemoryBlock(String), // Introduces a one-step delay, breaking causality
+}
+
 // Represents the simulation graph with tasks and their dependencies
 pub struct SimulationGraph {
-    graph: DiGraph<Box<dyn SimulationTask>, String>,
+    graph: DiGraph<Box<dyn SimulationTask>, DependencyType>,
     task_indices: HashMap<String, NodeIndex>,
 }
 
@@ -71,15 +77,36 @@ impl SimulationGraph {
         self.task_indices.insert(name, index);
     }
 
-    pub fn add_dependency(&mut self, from_task_name: &str, to_task_name: &str, data_flow: String) -> Result<(), String> {
+    pub fn add_dependency(&mut self, from_task_name: &str, to_task_name: &str, dep_type: DependencyType) -> Result<(), String> {
         let &from_index = self.task_indices.get(from_task_name).ok_or(format!("Task {} not found", from_task_name))?;
         let &to_index = self.task_indices.get(to_task_name).ok_or(format!("Task {} not found", to_task_name))?;
-        self.graph.add_edge(from_index, to_index, data_flow);
+        self.graph.add_edge(from_index, to_index, dep_type);
         Ok(())
     }
 
     pub fn get_execution_order(&self) -> Result<Vec<NodeIndex>, String> {
-        toposort(&self.graph, None).map_err(|e| format!("Causal loop detected: {:?}", e.node_id()))
+        // Create a graph for topological sort that ignores memory block dependencies
+        let mut graph_for_toposort = DiGraph::<(), ()>::new();
+        for node_idx in self.graph.node_indices() {
+            graph_for_toposort.add_node(());
+        }
+
+        for edge_idx in self.graph.edge_indices() {
+            let (u, v) = self.graph.edge_endpoints(edge_idx).unwrap();
+            match &self.graph[edge_idx] {
+                DependencyType::Direct(_) => {
+                    graph_for_toposort.add_edge(u, v, ());
+                },
+                DependencyType::MemoryBlock(_) => {
+                    // Ignore memory block dependencies for topological sort
+                }
+            }
+        }
+
+        match toposort(&graph_for_toposort, None) {
+            Ok(order) => Ok(order),
+            Err(e) => Err(format!("Causal loop detected that cannot be resolved by memory blocks: {:?}", e.node_id())),
+        }
     }
 }
 
@@ -100,9 +127,16 @@ pub async fn run_framework() {
     sim_graph.add_task("FMU1".to_string(), Box::new(FmuTask::new("FMU1".to_string())));
     sim_graph.add_task("FMU2".to_string(), Box::new(FmuTask::new("FMU2".to_string())));
 
-    // Example: Add a dependency
-    if let Err(e) = sim_graph.add_dependency("FMU1", "FMU2", "output_to_input".to_string()) {
+    // Example: Add a direct dependency
+    if let Err(e) = sim_graph.add_dependency("FMU1", "FMU2", DependencyType::Direct("output_to_input".to_string())) {
         eprintln!("Error adding dependency: {}", e);
+        return;
+    }
+
+    // Example: Add a memory block dependency (to create a resolvable cycle for testing)
+    // This would create a cycle: FMU1 -> FMU2 -> FMU1 (via memory block)
+    if let Err(e) = sim_graph.add_dependency("FMU2", "FMU1", DependencyType::MemoryBlock("feedback_signal".to_string())) {
+        eprintln!("Error adding memory block dependency: {}", e);
         return;
     }
 
