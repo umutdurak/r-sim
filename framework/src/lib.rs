@@ -100,10 +100,9 @@ impl SimulationTask for GpioTask {
     fn execute(&mut self, _current_time: Duration) {
         println!("  Executing GPIO Task {}", self.name);
         // Call trait methods explicitly
-        let self_as_io_task: &mut dyn IoTask = self; // Cast to IoTask trait object
-        self_as_io_task.read_io();
+        <Self as IoTask>::read_io(self);
         // Process inputs if any
-        self_as_io_task.write_io();
+        <Self as IoTask>::write_io(self);
     }
 
     fn get_inputs(&self) -> Vec<String> {
@@ -165,10 +164,9 @@ impl SerialTask {
 impl SimulationTask for SerialTask {
     fn execute(&mut self, _current_time: Duration) {
         println!("  Executing Serial Task {}", self.name);
-        let self_as_io_task: &mut dyn IoTask = self;
-        self_as_io_task.read_io();
+        <Self as IoTask>::read_io(self);
         // Process inputs if any
-        self_as_io_task.write_io();
+        <Self as IoTask>::write_io(self);
     }
 
     fn get_inputs(&self) -> Vec<String> {
@@ -230,10 +228,9 @@ impl UdpTask {
 impl SimulationTask for UdpTask {
     fn execute(&mut self, _current_time: Duration) {
         println!("  Executing UDP Task {}", self.name);
-        let self_as_io_task: &mut dyn IoTask = self;
-        self_as_io_task.read_io();
+        <Self as IoTask>::read_io(self);
         // Process inputs if any
-        self_as_io_task.write_io();
+        <Self as IoTask>::write_io(self);
     }
 
     fn get_inputs(&self) -> Vec<String> {
