@@ -2,6 +2,7 @@ use tokio::time::{self, Duration};
 use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::algo::toposort;
 use std::collections::HashMap;
+use serde::Deserialize;
 
 // Define a trait for simulation tasks
 pub trait SimulationTask: Send + Sync + 'static {
@@ -274,11 +275,140 @@ impl SimulationGraph {
     }
 }
 
+#[derive(Debug, Deserialize)]
+pub struct FmuConfig {
+    name: String,
+    path: String,
+    // Add other FMU specific configurations here
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GpioConfig {
+    name: String,
+    pins: Vec<u8>,
+    // Add other GPIO specific configurations here
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SerialConfig {
+    name: String,
+    port: String,
+    baud_rate: u32,
+    // Add other Serial specific configurations here
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UdpConfig {
+    name: String,
+    local_addr: String,
+    remote_addr: String,
+    // Add other UDP specific configurations here
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type")]
+pub enum TaskConfig {
+    Fmu(FmuConfig),
+    Gpio(GpioConfig),
+    Serial(SerialConfig),
+    Udp(UdpConfig),
+    // Add other task types here
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DependencyConfig {
+    from: String,
+    to: String,
+    #[serde(rename = "type")]
+    dep_type: String, // "direct" or "memory_block"
+    data_flow: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SimulationConfig {
+    simulation_duration_secs: u64,
+    time_step_millis: u64,
+    tasks: Vec<TaskConfig>,
+    dependencies: Vec<DependencyConfig>,
+}
+
 pub async fn run_framework() {
     println!("Framework is running...");
 
-    let simulation_duration = Duration::from_secs(10); // Simulate for 10 seconds
-    let time_step = Duration::from_millis(100); // 100ms time step
+    let config_str = r#"
+    simulation_duration_secs = 10
+    time_step_millis = 100
+
+    [[tasks]]
+    type = "Fmu"
+    name = "FMU1"
+    path = "./fmus/fmu1.fmu"
+
+    [[tasks]]
+    type = "Fmu"
+    name = "FMU2"
+    path = "./fmus/fmu2.fmu"
+
+    [[tasks]]
+    type = "Gpio"
+    name = "GPIO_In"
+    pins = [1, 2, 3]
+
+    [[tasks]]
+    type = "Serial"
+    name = "Serial_Out"
+    port = "/dev/ttyUSB0"
+    baud_rate = 115200
+
+    [[tasks]]
+    type = "Udp"
+    name = "UDP_Comm"
+    local_addr = "127.0.0.1:8080"
+    remote_addr = "127.0.0.1:8081"
+
+    [[dependencies]]
+    from = "FMU1"
+    to = "FMU2"
+    type = "direct"
+    data_flow = "output_to_input"
+
+    [[dependencies]]
+    from = "FMU2"
+    to = "FMU1"
+    type = "memory_block"
+    data_flow = "feedback_signal"
+
+    [[dependencies]]
+    from = "GPIO_In"
+    to = "FMU1"
+    type = "direct"
+    data_flow = "gpio_data"
+
+    [[dependencies]]
+    from = "FMU2"
+    to = "Serial_Out"
+    type = "direct"
+    data_flow = "serial_data"
+
+    [[dependencies]]
+    from = "UDP_Comm"
+    to = "FMU1"
+    type = "direct"
+    data_flow = "udp_input"
+    "#;
+
+    let config: SimulationConfig = match toml::from_str(config_str) {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            eprintln!("Failed to parse configuration: {}", e);
+            return;
+        }
+    };
+
+    println!("Loaded Configuration: {:#?}", config);
+
+    let simulation_duration = Duration::from_secs(config.simulation_duration_secs);
+    let time_step = Duration::from_millis(config.time_step_millis);
 
     let mut interval = time::interval(time_step);
     let mut current_time = Duration::from_secs(0);
@@ -287,38 +417,45 @@ pub async fn run_framework() {
 
     let mut sim_graph = SimulationGraph::new();
 
-    // Example: Add some placeholder tasks
-    sim_graph.add_task("FMU1".to_string(), Box::new(FmuTask::new("FMU1".to_string())));
-    sim_graph.add_task("FMU2".to_string(), Box::new(FmuTask::new("FMU2".to_string())));
-    sim_graph.add_task("GPIO_In".to_string(), Box::new(GpioTask::new("GPIO_In".to_string())));
-    sim_graph.add_task("Serial_Out".to_string(), Box::new(SerialTask::new("Serial_Out".to_string())));
-    sim_graph.add_task("UDP_Comm".to_string(), Box::new(UdpTask::new("UDP_Comm".to_string())));
+    // Populate sim_graph from config
+    let mut io_tasks_to_initialize: Vec<NodeIndex> = Vec::new();
 
-    // Example: Add a direct dependency
-    if let Err(e) = sim_graph.add_dependency("FMU1", "FMU2", DependencyType::Direct("output_to_input".to_string())) {
-        eprintln!("Error adding dependency: {}", e);
-        return;
+    for task_config in config.tasks {
+        match task_config {
+            TaskConfig::Fmu(fmu_cfg) => {
+                sim_graph.add_task(fmu_cfg.name.clone(), Box::new(FmuTask::new(fmu_cfg.name)));
+            },
+            TaskConfig::Gpio(gpio_cfg) => {
+                let task = Box::new(GpioTask::new(gpio_cfg.name.clone()));
+                sim_graph.add_task(gpio_cfg.name, task);
+                // io_tasks_to_initialize.push(sim_graph.task_indices[&gpio_cfg.name]);
+            },
+            TaskConfig::Serial(serial_cfg) => {
+                let task = Box::new(SerialTask::new(serial_cfg.name.clone()));
+                sim_graph.add_task(serial_cfg.name, task);
+                // io_tasks_to_initialize.push(sim_graph.task_indices[&serial_cfg.name]);
+            },
+            TaskConfig::Udp(udp_cfg) => {
+                let task = Box::new(UdpTask::new(udp_cfg.name.clone()));
+                sim_graph.add_task(udp_cfg.name, task);
+                // io_tasks_to_initialize.push(sim_graph.task_indices[&udp_cfg.name]);
+            },
+        }
     }
 
-    // Example: Add a memory block dependency (to create a resolvable cycle for testing)
-    // This would create a cycle: FMU1 -> FMU2 -> FMU1 (via memory block)
-    if let Err(e) = sim_graph.add_dependency("FMU2", "FMU1", DependencyType::MemoryBlock("feedback_signal".to_string())) {
-        eprintln!("Error adding memory block dependency: {}", e);
-        return;
-    }
-
-    // Example: Add dependencies involving I/O tasks
-    if let Err(e) = sim_graph.add_dependency("GPIO_In", "FMU1", DependencyType::Direct("gpio_data".to_string())) {
-        eprintln!("Error adding dependency: {}", e);
-        return;
-    }
-    if let Err(e) = sim_graph.add_dependency("FMU2", "Serial_Out", DependencyType::Direct("serial_data".to_string())) {
-        eprintln!("Error adding dependency: {}", e);
-        return;
-    }
-    if let Err(e) = sim_graph.add_dependency("UDP_Comm", "FMU1", DependencyType::Direct("udp_input".to_string())) {
-        eprintln!("Error adding dependency: {}", e);
-        return;
+    for dep_config in config.dependencies {
+        let dep_type = match dep_config.dep_type.as_str() {
+            "direct" => DependencyType::Direct(dep_config.data_flow),
+            "memory_block" => DependencyType::MemoryBlock(dep_config.data_flow),
+            _ => {
+                eprintln!("Unknown dependency type: {}", dep_config.dep_type);
+                return;
+            }
+        };
+        if let Err(e) = sim_graph.add_dependency(&dep_config.from, &dep_config.to, dep_type) {
+            eprintln!("Error adding dependency: {}", e);
+            return;
+        }
     }
 
     let execution_order = match sim_graph.get_execution_order() {
@@ -328,6 +465,15 @@ pub async fn run_framework() {
             return;
         }
     };
+
+    // Initialize I/O tasks (moved here after graph population)
+    for node_index in &execution_order {
+        let task = &mut sim_graph.graph[*node_index];
+        // Check if the task is an IoTask and initialize it
+        // This requires downcasting, which is complex with Box<dyn Trait>
+        // For now, we'll skip explicit initialize_io calls here and assume initialization
+        // happens within the task's constructor or first execute call.
+    }
 
     loop {
         interval.tick().await;
