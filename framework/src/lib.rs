@@ -6,6 +6,7 @@ use serde::Deserialize;
 use csv::Writer;
 use std::fs::File;
 use std::any::Any;
+use warp::Filter;
 
 // Define a trait for simulation tasks
 pub trait SimulationTask: Send + Sync + 'static {
@@ -570,6 +571,20 @@ pub async fn run_framework() {
         return;
     }
 
+    // Web server for monitoring
+    let routes = warp::path!("hello")
+        .map(|| "Hello, world!");
+
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let server_handle = tokio::spawn(async move {
+        let (_addr, server) = warp::serve(routes).bind_with_graceful_shutdown(([127, 0, 0, 1], 3030), async {
+            rx.await.ok();
+        });
+        server.await;
+    });
+
+    println!("Web server running on http://127.0.0.1:3030/hello");
+
     loop {
         interval.tick().await;
         current_time += time_step;
@@ -597,6 +612,8 @@ pub async fn run_framework() {
 
         if current_time >= simulation_duration {
             println!("Simulation finished.");
+            // Shut down the web server gracefully
+            let _ = tx.send(());
             break;
         }
     }
@@ -604,4 +621,7 @@ pub async fn run_framework() {
     if let Err(e) = logger.flush() {
         eprintln!("Failed to flush logger: {}", e);
     }
+
+    // Wait for the server to shut down
+    let _ = server_handle.await;
 }
