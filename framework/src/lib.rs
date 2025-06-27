@@ -3,6 +3,9 @@ use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::algo::toposort;
 use std::collections::HashMap;
 use serde::Deserialize;
+use csv::Writer;
+use std::fs::File;
+use std::any::Any;
 
 // Define a trait for simulation tasks
 pub trait SimulationTask: Send + Sync + 'static {
@@ -10,6 +13,9 @@ pub trait SimulationTask: Send + Sync + 'static {
     fn get_inputs(&self) -> Vec<String>;
     fn get_outputs(&self) -> Vec<String>;
     fn set_input(&mut self, name: &str, value: f64);
+    fn get_output_value(&self, name: &str) -> Option<f64>;
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
 // Placeholder for a concrete FMU task (will be replaced by actual FMU integration)
@@ -51,6 +57,18 @@ impl SimulationTask for FmuTask {
     fn set_input(&mut self, name: &str, value: f64) {
         self.inputs.insert(name.to_string(), value);
     }
+
+    fn get_output_value(&self, name: &str) -> Option<f64> {
+        self.outputs.get(name).cloned()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 }
 
 // Define a trait for I/O tasks
@@ -81,9 +99,11 @@ impl GpioTask {
 impl SimulationTask for GpioTask {
     fn execute(&mut self, _current_time: Duration) {
         println!("  Executing GPIO Task {}", self.name);
-        self.read_io();
+        // Call trait methods explicitly
+        let self_as_io_task: &mut dyn IoTask = self; // Cast to IoTask trait object
+        self_as_io_task.read_io();
         // Process inputs if any
-        self.write_io();
+        self_as_io_task.write_io();
     }
 
     fn get_inputs(&self) -> Vec<String> {
@@ -96,6 +116,18 @@ impl SimulationTask for GpioTask {
 
     fn set_input(&mut self, name: &str, value: f64) {
         self.inputs.insert(name.to_string(), value);
+    }
+
+    fn get_output_value(&self, name: &str) -> Option<f64> {
+        self.outputs.get(name).cloned()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }
 
@@ -133,9 +165,10 @@ impl SerialTask {
 impl SimulationTask for SerialTask {
     fn execute(&mut self, _current_time: Duration) {
         println!("  Executing Serial Task {}", self.name);
-        self.read_io();
+        let self_as_io_task: &mut dyn IoTask = self;
+        self_as_io_task.read_io();
         // Process inputs if any
-        self.write_io();
+        self_as_io_task.write_io();
     }
 
     fn get_inputs(&self) -> Vec<String> {
@@ -148,6 +181,18 @@ impl SimulationTask for SerialTask {
 
     fn set_input(&mut self, name: &str, value: f64) {
         self.inputs.insert(name.to_string(), value);
+    }
+
+    fn get_output_value(&self, name: &str) -> Option<f64> {
+        self.outputs.get(name).cloned()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }
 
@@ -185,9 +230,10 @@ impl UdpTask {
 impl SimulationTask for UdpTask {
     fn execute(&mut self, _current_time: Duration) {
         println!("  Executing UDP Task {}", self.name);
-        self.read_io();
+        let self_as_io_task: &mut dyn IoTask = self;
+        self_as_io_task.read_io();
         // Process inputs if any
-        self.write_io();
+        self_as_io_task.write_io();
     }
 
     fn get_inputs(&self) -> Vec<String> {
@@ -200,6 +246,18 @@ impl SimulationTask for UdpTask {
 
     fn set_input(&mut self, name: &str, value: f64) {
         self.inputs.insert(name.to_string(), value);
+    }
+
+    fn get_output_value(&self, name: &str) -> Option<f64> {
+        self.outputs.get(name).cloned()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }
 
@@ -332,6 +390,39 @@ pub struct SimulationConfig {
     dependencies: Vec<DependencyConfig>,
 }
 
+pub struct Logger {
+    writer: Writer<File>,
+    headers_written: bool,
+}
+
+impl Logger {
+    pub fn new(file_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        let file = File::create(file_path)?;
+        let writer = Writer::from_writer(file);
+        Ok(Logger { writer, headers_written: false })
+    }
+
+    pub fn write_headers(&mut self, headers: &[&str]) -> Result<(), Box<dyn std::error::Error>> {
+        self.writer.write_record(headers)?;
+        self.headers_written = true;
+        Ok(())
+    }
+
+    pub fn write_record(&mut self, record: &[&str]) -> Result<(), Box<dyn std::error::Error>> {
+        if !self.headers_written {
+            // This should ideally not happen if headers are written first
+            eprintln!("Warning: Attempted to write data before headers.");
+        }
+        self.writer.write_record(record)?;
+        Ok(())
+    }
+
+    pub fn flush(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        self.writer.flush()?;
+        Ok(())
+    }
+}
+
 pub async fn run_framework() {
     println!("Framework is running...");
 
@@ -418,7 +509,7 @@ pub async fn run_framework() {
     let mut sim_graph = SimulationGraph::new();
 
     // Populate sim_graph from config
-    let mut io_tasks_to_initialize: Vec<NodeIndex> = Vec::new();
+    // let mut io_tasks_to_initialize: Vec<NodeIndex> = Vec::new(); // Removed as it's unused
 
     for task_config in config.tasks {
         match task_config {
@@ -428,17 +519,14 @@ pub async fn run_framework() {
             TaskConfig::Gpio(gpio_cfg) => {
                 let task = Box::new(GpioTask::new(gpio_cfg.name.clone()));
                 sim_graph.add_task(gpio_cfg.name, task);
-                // io_tasks_to_initialize.push(sim_graph.task_indices[&gpio_cfg.name]);
             },
             TaskConfig::Serial(serial_cfg) => {
                 let task = Box::new(SerialTask::new(serial_cfg.name.clone()));
                 sim_graph.add_task(serial_cfg.name, task);
-                // io_tasks_to_initialize.push(sim_graph.task_indices[&serial_cfg.name]);
             },
             TaskConfig::Udp(udp_cfg) => {
                 let task = Box::new(UdpTask::new(udp_cfg.name.clone()));
                 sim_graph.add_task(udp_cfg.name, task);
-                // io_tasks_to_initialize.push(sim_graph.task_indices[&udp_cfg.name]);
             },
         }
     }
@@ -467,12 +555,22 @@ pub async fn run_framework() {
     };
 
     // Initialize I/O tasks (moved here after graph population)
-    for node_index in &execution_order {
-        let task = &mut sim_graph.graph[*node_index];
-        // Check if the task is an IoTask and initialize it
-        // This requires downcasting, which is complex with Box<dyn Trait>
-        // For now, we'll skip explicit initialize_io calls here and assume initialization
-        // happens within the task's constructor or first execute call.
+    // This requires downcasting, which is complex with Box<dyn Trait>
+    // For now, we'll skip explicit initialize_io calls here and assume initialization
+    // happens within the task's constructor or first execute call.
+
+    let mut logger = match Logger::new("simulation_log.csv") {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("Failed to create logger: {}", e);
+            return;
+        }
+    };
+
+    // Write CSV headers
+    if let Err(e) = logger.write_headers(&["Time", "FMU1_output_var"]) {
+        eprintln!("Failed to write CSV headers: {}", e);
+        return;
     }
 
     loop {
@@ -484,11 +582,29 @@ pub async fn run_framework() {
         for node_index in &execution_order {
             let task = &mut sim_graph.graph[*node_index];
             task.execute(current_time);
+
+            // Log FMU1 output_var
+            if let Some(fmu_task) = task.as_any_mut().downcast_mut::<FmuTask>() {
+                if fmu_task.name == "FMU1" {
+                    if let Some(output_val) = fmu_task.get_output_value("output_var") {
+                        if let Err(e) = logger.write_record(&[
+                            &format!("{:?}", current_time.as_secs_f64()),
+                            &format!("{}", output_val),
+                        ]) {
+                            eprintln!("Failed to write log record: {}", e);
+                        }
+                    }
+                }
+            }
         }
 
         if current_time >= simulation_duration {
             println!("Simulation finished.");
             break;
         }
+    }
+
+    if let Err(e) = logger.flush() {
+        eprintln!("Failed to flush logger: {}", e);
     }
 }
