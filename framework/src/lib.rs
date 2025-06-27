@@ -52,6 +52,170 @@ impl SimulationTask for FmuTask {
     }
 }
 
+// Define a trait for I/O tasks
+pub trait IoTask: SimulationTask {
+    // Specific I/O methods can be added here later
+    fn initialize_io(&mut self);
+    fn read_io(&mut self);
+    fn write_io(&mut self);
+}
+
+// Placeholder for GPIO Task
+pub struct GpioTask {
+    name: String,
+    inputs: HashMap<String, f64>,
+    outputs: HashMap<String, f64>,
+}
+
+impl GpioTask {
+    pub fn new(name: String) -> Self {
+        GpioTask { 
+            name,
+            inputs: HashMap::new(),
+            outputs: HashMap::new(),
+        }
+    }
+}
+
+impl SimulationTask for GpioTask {
+    fn execute(&mut self, _current_time: Duration) {
+        println!("  Executing GPIO Task {}", self.name);
+        self.read_io();
+        // Process inputs if any
+        self.write_io();
+    }
+
+    fn get_inputs(&self) -> Vec<String> {
+        self.inputs.keys().cloned().collect()
+    }
+
+    fn get_outputs(&self) -> Vec<String> {
+        self.outputs.keys().cloned().collect()
+    }
+
+    fn set_input(&mut self, name: &str, value: f64) {
+        self.inputs.insert(name.to_string(), value);
+    }
+}
+
+impl IoTask for GpioTask {
+    fn initialize_io(&mut self) {
+        println!("    GPIO Task {} initialized.", self.name);
+    }
+    fn read_io(&mut self) {
+        // Simulate reading GPIO pins
+        // println!("    GPIO Task {} reading inputs.", self.name);
+    }
+    fn write_io(&mut self) {
+        // Simulate writing to GPIO pins
+        // println!("    GPIO Task {} writing outputs.", self.name);
+    }
+}
+
+// Placeholder for Serial Communication Task
+pub struct SerialTask {
+    name: String,
+    inputs: HashMap<String, f64>,
+    outputs: HashMap<String, f64>,
+}
+
+impl SerialTask {
+    pub fn new(name: String) -> Self {
+        SerialTask { 
+            name,
+            inputs: HashMap::new(),
+            outputs: HashMap::new(),
+        }
+    }
+}
+
+impl SimulationTask for SerialTask {
+    fn execute(&mut self, _current_time: Duration) {
+        println!("  Executing Serial Task {}", self.name);
+        self.read_io();
+        // Process inputs if any
+        self.write_io();
+    }
+
+    fn get_inputs(&self) -> Vec<String> {
+        self.inputs.keys().cloned().collect()
+    }
+
+    fn get_outputs(&self) -> Vec<String> {
+        self.outputs.keys().cloned().collect()
+    }
+
+    fn set_input(&mut self, name: &str, value: f64) {
+        self.inputs.insert(name.to_string(), value);
+    }
+}
+
+impl IoTask for SerialTask {
+    fn initialize_io(&mut self) {
+        println!("    Serial Task {} initialized.", self.name);
+    }
+    fn read_io(&mut self) {
+        // Simulate reading serial data
+        // println!("    Serial Task {} reading inputs.", self.name);
+    }
+    fn write_io(&mut self) {
+        // Simulate writing serial data
+        // println!("    Serial Task {} writing outputs.", self.name);
+    }
+}
+
+// Placeholder for UDP Communication Task
+pub struct UdpTask {
+    name: String,
+    inputs: HashMap<String, f64>,
+    outputs: HashMap<String, f64>,
+}
+
+impl UdpTask {
+    pub fn new(name: String) -> Self {
+        UdpTask { 
+            name,
+            inputs: HashMap::new(),
+            outputs: HashMap::new(),
+        }
+    }
+}
+
+impl SimulationTask for UdpTask {
+    fn execute(&mut self, _current_time: Duration) {
+        println!("  Executing UDP Task {}", self.name);
+        self.read_io();
+        // Process inputs if any
+        self.write_io();
+    }
+
+    fn get_inputs(&self) -> Vec<String> {
+        self.inputs.keys().cloned().collect()
+    }
+
+    fn get_outputs(&self) -> Vec<String> {
+        self.outputs.keys().cloned().collect()
+    }
+
+    fn set_input(&mut self, name: &str, value: f64) {
+        self.inputs.insert(name.to_string(), value);
+    }
+}
+
+impl IoTask for UdpTask {
+    fn initialize_io(&mut self) {
+        println!("    UDP Task {} initialized.", self.name);
+    }
+    fn read_io(&mut self) {
+        // Simulate reading UDP data
+        // println!("    UDP Task {} reading inputs.", self.name);
+    }
+    fn write_io(&mut self) {
+        // Simulate writing UDP data
+        // println!("    UDP Task {} writing outputs.", self.name);
+    }
+}
+
 // Represents the type of dependency between tasks
 pub enum DependencyType {
     Direct(String), // Direct data flow, e.g., "output_to_input"
@@ -126,6 +290,9 @@ pub async fn run_framework() {
     // Example: Add some placeholder tasks
     sim_graph.add_task("FMU1".to_string(), Box::new(FmuTask::new("FMU1".to_string())));
     sim_graph.add_task("FMU2".to_string(), Box::new(FmuTask::new("FMU2".to_string())));
+    sim_graph.add_task("GPIO_In".to_string(), Box::new(GpioTask::new("GPIO_In".to_string())));
+    sim_graph.add_task("Serial_Out".to_string(), Box::new(SerialTask::new("Serial_Out".to_string())));
+    sim_graph.add_task("UDP_Comm".to_string(), Box::new(UdpTask::new("UDP_Comm".to_string())));
 
     // Example: Add a direct dependency
     if let Err(e) = sim_graph.add_dependency("FMU1", "FMU2", DependencyType::Direct("output_to_input".to_string())) {
@@ -137,6 +304,20 @@ pub async fn run_framework() {
     // This would create a cycle: FMU1 -> FMU2 -> FMU1 (via memory block)
     if let Err(e) = sim_graph.add_dependency("FMU2", "FMU1", DependencyType::MemoryBlock("feedback_signal".to_string())) {
         eprintln!("Error adding memory block dependency: {}", e);
+        return;
+    }
+
+    // Example: Add dependencies involving I/O tasks
+    if let Err(e) = sim_graph.add_dependency("GPIO_In", "FMU1", DependencyType::Direct("gpio_data".to_string())) {
+        eprintln!("Error adding dependency: {}", e);
+        return;
+    }
+    if let Err(e) = sim_graph.add_dependency("FMU2", "Serial_Out", DependencyType::Direct("serial_data".to_string())) {
+        eprintln!("Error adding dependency: {}", e);
+        return;
+    }
+    if let Err(e) = sim_graph.add_dependency("UDP_Comm", "FMU1", DependencyType::Direct("udp_input".to_string())) {
+        eprintln!("Error adding dependency: {}", e);
         return;
     }
 
