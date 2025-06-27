@@ -585,6 +585,13 @@ pub async fn run_framework() {
 
     println!("Web server running on http://127.0.0.1:3030/hello");
 
+    // REQ-DETERMINISTIC-EXECUTION: Ensuring deterministic execution is crucial for real-time simulations.
+    // This involves careful consideration of:
+    // - Floating-point arithmetic: Use fixed-point or ensure consistent FPU settings across platforms.
+    // - Random number generation: Use deterministic PRNGs with fixed seeds.
+    // - Thread scheduling: Rely on RTOS features (e.g., Linux RT patch) for predictable task execution.
+    // - External interactions: Minimize non-deterministic I/O or provide mechanisms to make it deterministic.
+
     loop {
         interval.tick().await;
         current_time += time_step;
