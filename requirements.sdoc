@@ -20,6 +20,7 @@ TITLE: FMU Co-Simulation Support
 STATEMENT: >
   The framework shall support the co-simulation of Functional Mockup Units (FMUs)
   compliant with the FMI standard for Co-Simulation.
+STATUS: Blocked (due to unstable Rust FMI crate)
 REFINES: REQ-FRAMEWORK
 
 [REQUIREMENT]
@@ -213,6 +214,7 @@ TITLE: Simulation Lifecycle Management
 STATEMENT: >
   The framework shall provide clear and accessible mechanisms to control the simulation lifecycle,
   including starting, stopping, pausing, and resuming simulation execution.
+STATUS: Implemented
 REFINES: REQ-FRAMEWORK
 
 [REQUIREMENT]
@@ -231,6 +233,7 @@ STATEMENT: >
   The framework shall provide interfaces or mechanisms for real-time monitoring
   of simulation progress and key variable values, suitable for visualization
   or debugging purposes.
+STATUS: Implemented
 REFINES: REQ-FRAMEWORK
 
 [REQUIREMENT]
@@ -239,6 +242,7 @@ TITLE: Time Synchronization
 STATEMENT: >
   The framework shall provide mechanisms to synchronize simulation time with wall-clock time,
   or to allow running simulations faster or slower than real-time, as configured by the user.
+STATUS: Implemented
 REFINES: REQ-FRAMEWORK
 
 [/GROUP]
@@ -294,6 +298,7 @@ TITLE: Command-Line Interface (CLI)
 STATEMENT: >
   The framework shall provide a user-friendly command-line interface (CLI) for
   configuring, running, and monitoring simulations.
+STATUS: Implemented
 REFINES: REQ-FRAMEWORK
 
 [REQUIREMENT]
@@ -303,6 +308,7 @@ STATEMENT: >
   The framework shall provide a clear and well-documented API for users to
   integrate their own custom simulation components (e.g., written in Rust)
   alongside FMUs.
+STATUS: Implemented
 REFINES: REQ-FRAMEWORK
 
 [REQUIREMENT]
