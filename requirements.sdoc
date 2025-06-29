@@ -284,6 +284,7 @@ STATEMENT: >
   The framework shall be capable of reporting key performance metrics, such as
   task execution times, jitter, and CPU utilization, to aid in performance analysis
   and optimization.
+STATUS: Implemented
 REFINES: REQ-FRAMEWORK
 
 [REQUIREMENT]
@@ -293,6 +294,7 @@ STATEMENT: >
   The framework shall be designed to support hard real-time execution on a
   Linux operating system with a real-time (RT) patch, ensuring deterministic
   task execution within defined deadlines.
+STATUS: Future Work
 REFINES: REQ-FRAMEWORK
 
 [/GROUP]
