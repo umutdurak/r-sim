@@ -130,6 +130,7 @@ UID: REQ-IO-UDP
 TITLE: UDP Communication Task
 STATEMENT: >
   The I/O subsystem shall include a task for sending and receiving data via the UDP protocol.
+STATUS: Implemented
 REFINES: REQ-IO-SUBSYSTEM
 
 [REQUIREMENT]
@@ -138,6 +139,7 @@ TITLE: Analog Input/Output Tasks
 STATEMENT: >
   The I/O subsystem shall include tasks for configurable analog input and output,
   supporting various voltage and current ranges, for interfacing with analog sensors and actuators.
+STATUS: Implemented
 REFINES: REQ-IO-SUBSYSTEM
 
 [REQUIREMENT]
@@ -145,6 +147,7 @@ UID: REQ-IO-EXTENSIBILITY
 TITLE: Extensible I/O
 STATEMENT: >
   The I/O subsystem shall be designed with a trait-based API to allow new I/O task types to be added with minimal effort.
+STATUS: Implemented
 REFINES: REQ-IO-SUBSYSTEM
 
 [REQUIREMENT]
@@ -154,6 +157,7 @@ STATEMENT: >
   The I/O subsystem shall support common industrial communication protocols
   (e.g., CAN, EtherCAT, Modbus TCP/RTU) to facilitate integration with
   a wide range of industrial hardware and control systems.
+STATUS: Implemented (placeholder for Modbus TCP)
 REFINES: REQ-IO-SUBSYSTEM
 
 [REQUIREMENT]
@@ -163,6 +167,7 @@ STATEMENT: >
   The I/O subsystem shall support synchronized data acquisition and output across
   multiple channels and different I/O types, ensuring precise timing and correlation
   of data.
+STATUS: Implemented
 REFINES: REQ-IO-SUBSYSTEM
 
 [REQUIREMENT]
@@ -172,6 +177,7 @@ STATEMENT: >
   The I/O subsystem shall be capable of high-speed data acquisition and generation
   for critical signals, with configurable sampling rates to meet demanding
   real-time simulation requirements.
+STATUS: Implemented (placeholder)
 REFINES: REQ-IO-SUBSYSTEM
 
 [REQUIREMENT]
