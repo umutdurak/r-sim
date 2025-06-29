@@ -232,6 +232,7 @@ STATEMENT: >
   The framework shall provide configurable mechanisms for logging simulation data,
   including FMU variable values and I/O states, to persistent storage.
   The logging format shall be user-selectable (e.g., CSV, HDF5).
+STATUS: Implemented
 REFINES: REQ-FRAMEWORK
 
 [REQUIREMENT]
