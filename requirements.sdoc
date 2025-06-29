@@ -195,17 +195,19 @@ REFINES: REQ-IO-SUBSYSTEM
 TITLE: Configuration
 REFINES: REQ-FRAMEWORK
 
-[REQUIREMENT]
 UID: REQ-CONFIGURATION
 TITLE: Simulation Configuration
 STATEMENT: >
   The entire simulation scenario, including FMUs, task scheduling, data dependencies, and I/O, shall be defined in a single, user-provided configuration file.
+STATUS: Implemented
+REFINES: REQ-FRAMEWORK
 
 [REQUIREMENT]
 UID: REQ-CONFIG-FORMAT
 TITLE: Configuration File Format
 STATEMENT: >
   The configuration shall use a human-readable, structured format. TOML is the preferred format.
+STATUS: Implemented
 REFINES: REQ-CONFIGURATION
 
 [/GROUP]

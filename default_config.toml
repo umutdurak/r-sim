@@ -1,0 +1,56 @@
+[[tasks]]
+type = "Fmu"
+name = "FMU1"
+path = "./fmus/fmu1.fmu"
+
+[[tasks]]
+type = "Fmu"
+name = "FMU2"
+path = "./fmus/fmu2.fmu"
+
+[[tasks]]
+type = "Gpio"
+name = "GPIO_In"
+pins = [1, 2, 3]
+
+[[tasks]]
+type = "Serial"
+name = "Serial_Out"
+port = "/dev/ttyUSB0"
+baud_rate = 115200
+
+[[tasks]]
+type = "Udp"
+name = "UDP_Comm"
+local_addr = "127.0.0.1:8080"
+remote_addr = "127.0.0.1:8081"
+
+[[dependencies]]
+from = "FMU1"
+to = "FMU2"
+type = "direct"
+data_flow = "output_to_input"
+
+[[dependencies]]
+from = "FMU2"
+to = "FMU1"
+type = "memory_block"
+data_flow = "feedback_signal"
+
+[[dependencies]]
+from = "GPIO_In"
+to = "FMU1"
+type = "direct"
+data_flow = "gpio_data"
+
+[[dependencies]]
+from = "FMU2"
+to = "Serial_Out"
+type = "direct"
+data_flow = "serial_data"
+
+[[dependencies]]
+from = "UDP_Comm"
+to = "FMU1"
+type = "direct"
+data_flow = "udp_input"
