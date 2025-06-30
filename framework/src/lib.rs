@@ -1,5 +1,3 @@
-
-
 use std::path::PathBuf;
 use tokio::fs;
 use tokio::time::{self, Duration};
@@ -31,7 +29,7 @@ pub enum FrameworkError {
     #[error("Task execution error: {0}")]
     TaskExecutionError(String),
     #[error("Web server error: {0}")]
-    WebServerError(#[from] warp::Error),
+    WebServerError(String),
     #[error("Unknown error: {0}")]
     Unknown(String),
 }
@@ -49,6 +47,7 @@ pub enum SimulationStatus {
 pub struct SimulationData {
     pub current_time_secs: f64,
     pub task_outputs: HashMap<String, HashMap<String, f64>>,
+    pub task_execution_times_micros: HashMap<String, u64>,
 }
 
 /// Defines the interface for any simulation task within the framework.
@@ -91,6 +90,8 @@ pub trait SimulationTask: Send + Sync + 'static {
     /// Provides a mutable way to downcast the trait object to a concrete type.
     /// This is useful for accessing and modifying specific fields or methods of a concrete task implementation.
     fn as_any_mut(&mut self) -> &mut dyn Any;
+    /// Returns the name of the task.
+    fn get_name(&self) -> String;
 }
 
 // Type alias for a function that creates a Box<dyn SimulationTask> from a TaskConfig
@@ -130,7 +131,6 @@ impl TaskFactory {
     }
 }
 
-// Placeholder for a concrete FMU task (will be replaced by actual FMU integration)
 pub struct FmuTask {
     name: String,
     inputs: HashMap<String, f64>,
@@ -185,6 +185,10 @@ impl SimulationTask for FmuTask {
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn get_name(&self) -> String {
+        self.name.clone()
     }
 }
 
@@ -252,6 +256,10 @@ impl SimulationTask for GpioTask {
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn get_name(&self) -> String {
+        self.name.clone()
     }
 }
 
@@ -329,6 +337,10 @@ impl SimulationTask for SerialTask {
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn get_name(&self) -> String {
+        self.name.clone()
     }
 }
 
@@ -411,6 +423,10 @@ impl SimulationTask for UdpTask {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
+
+    fn get_name(&self) -> String {
+        self.name.clone()
+    }
 }
 
 #[async_trait]
@@ -474,16 +490,18 @@ pub struct AnalogTask {
     outputs: HashMap<String, f64>,
     channels: Vec<u8>,
     is_input: bool,
+    sampling_rate_hz: Option<u32>,
 }
 
 impl AnalogTask {
-    pub fn new(name: String, channels: Vec<u8>, is_input: bool) -> Self {
+    pub fn new(name: String, channels: Vec<u8>, is_input: bool, sampling_rate_hz: Option<u32>) -> Self {
         AnalogTask {
             name,
             inputs: HashMap::new(),
             outputs: HashMap::new(),
             channels,
             is_input,
+            sampling_rate_hz,
         }
     }
 }
@@ -526,12 +544,21 @@ impl SimulationTask for AnalogTask {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
+
+    fn get_name(&self) -> String {
+        self.name.clone()
+    }
 }
 
 #[async_trait]
 impl IoTask for AnalogTask {
     async fn initialize_io(&mut self) -> Result<(), FrameworkError> {
-        println!("    Analog Task {} initialized for channels: {:?}. Is input: {}", self.name, self.channels, self.is_input);
+        print!("    Analog Task {} initialized for channels: {:?}. Is input: {}.", self.name, self.channels, self.is_input);
+        if let Some(rate) = self.sampling_rate_hz {
+            println!(" Sampling Rate: {} Hz.", rate);
+        } else {
+            println!(" No sampling rate specified.");
+        }
         Ok(())
     }
     async fn read_io(&mut self) -> Result<(), FrameworkError> {
@@ -601,6 +628,10 @@ impl SimulationTask for ModbusTcpTask {
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn get_name(&self) -> String {
+        self.name.clone()
     }
 }
 
@@ -677,6 +708,10 @@ impl SimulationTask for CustomTask {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
+
+    fn get_name(&self) -> String {
+        self.name.clone()
+    }
 }
 
 // Represents the type of dependency between tasks
@@ -687,7 +722,7 @@ pub enum DependencyType {
 
 // Represents the simulation graph with tasks and their dependencies
 pub struct SimulationGraph {
-    graph: DiGraph<Box<dyn SimulationTask>, DependencyType>,
+    graph: DiGraph<Arc<RwLock<Box<dyn SimulationTask>>>, DependencyType>,
     task_indices: HashMap<String, NodeIndex>,
 }
 
@@ -699,9 +734,10 @@ impl SimulationGraph {
         }
     }
 
-    pub fn add_task(&mut self, name: String, task: Box<dyn SimulationTask>) {
+    pub fn add_task(&mut self, name: String, task: Arc<RwLock<Box<dyn SimulationTask>>>) -> NodeIndex {
         let index = self.graph.add_node(task);
         self.task_indices.insert(name, index);
+        index
     }
 
     pub fn add_dependency(&mut self, from_task_name: &str, to_task_name: &str, dep_type: DependencyType) -> Result<(), FrameworkError> {
@@ -772,6 +808,7 @@ pub struct AnalogConfig {
     name: String,
     channels: Vec<u8>,
     is_input: bool,
+    sampling_rate_hz: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -810,10 +847,18 @@ pub struct DependencyConfig {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct LoggingConfig {
+    pub log_file: String,
+    pub log_interval_millis: Option<u64>,
+    pub logged_outputs: HashMap<String, Vec<String>>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct SimulationConfig {
     tasks: Vec<TaskConfig>,
     dependencies: Vec<DependencyConfig>,
     time_multiplier: Option<f64>,
+    pub logging: Option<LoggingConfig>,
 }
 
 // Task creator functions
@@ -851,7 +896,7 @@ fn create_udp_task(config: TaskConfig) -> Result<Box<dyn SimulationTask>, Framew
 
 fn create_analog_task(config: TaskConfig) -> Result<Box<dyn SimulationTask>, FrameworkError> {
     if let TaskConfig::Analog(cfg) = config {
-        Ok(Box::new(AnalogTask::new(cfg.name, cfg.channels, cfg.is_input)))
+        Ok(Box::new(AnalogTask::new(cfg.name, cfg.channels, cfg.is_input, cfg.sampling_rate_hz)))
     } else {
         Err(FrameworkError::ConfigurationError("Invalid config for Analog task".to_string()))
     }
@@ -876,24 +921,46 @@ fn create_custom_task(config: TaskConfig) -> Result<Box<dyn SimulationTask>, Fra
 pub struct Logger {
     writer: Writer<File>,
     headers_written: bool,
+    logged_output_names: Vec<String>,
 }
 
 impl Logger {
-    pub fn new(file_path: &str) -> Result<Self, FrameworkError> {
+    pub fn new(file_path: &str, logged_output_names: Vec<String>) -> Result<Self, FrameworkError> {
         let file = File::create(file_path).map_err(FrameworkError::IoError)?;
         let writer = Writer::from_writer(file);
-        Ok(Logger { writer, headers_written: false })
+        Ok(Logger { writer, headers_written: false, logged_output_names })
     }
 
-    pub fn write_headers(&mut self, headers: &[&str]) -> Result<(), FrameworkError> {
+    pub fn write_headers(&mut self) -> Result<(), FrameworkError> {
+        let mut headers = vec!["Time".to_string()];
+        headers.extend(self.logged_output_names.iter().cloned());
         self.writer.write_record(headers).map_err(FrameworkError::CsvError)?;
         self.headers_written = true;
         Ok(())
     }
 
-    pub fn write_record(&mut self, record: &[&str]) -> Result<(), FrameworkError> {
+    pub fn write_record(&mut self, current_time_secs: f64, task_outputs: &HashMap<String, HashMap<String, f64>>) -> Result<(), FrameworkError> {
         if !self.headers_written {
             eprintln!("Warning: Attempted to write data before headers.");
+        }
+        let mut record = vec![format!("{}", current_time_secs)];
+        for output_name in &self.logged_output_names {
+            let parts: Vec<&str> = output_name.split(".").collect();
+            if parts.len() == 2 {
+                let task_name = parts[0];
+                let output_var_name = parts[1];
+                if let Some(task_output_map) = task_outputs.get(task_name) {
+                    if let Some(value) = task_output_map.get(output_var_name) {
+                        record.push(format!("{}", value));
+                    } else {
+                        record.push("".to_string()); // Placeholder for missing value
+                    }
+                } else {
+                    record.push("".to_string()); // Placeholder for missing task
+                }
+            } else {
+                record.push("".to_string()); // Invalid format
+            }
         }
         self.writer.write_record(record).map_err(FrameworkError::CsvError)?;
         Ok(())
@@ -906,76 +973,90 @@ impl Logger {
 }
 
 
+pub async fn send_control_command(command: SimulationStatus) -> Result<(), FrameworkError> {
+    let client = reqwest::Client::new();
+    let url = match command {
+        SimulationStatus::Running => "http://127.0.0.1:3030/control?cmd=start",
+        SimulationStatus::Paused => "http://127.0.0.1:3030/control?cmd=pause",
+        SimulationStatus::Stopped => "http://127.0.0.1:3030/control?cmd=stop",
+    };
+
+    client.get(url).send().await
+        .map_err(|e| FrameworkError::WebServerError(e.to_string()))?;
+
+    Ok(())
+}
+
+pub async fn start_web_server() -> Result<(watch::Sender<SimulationStatus>, Arc<RwLock<SimulationData>>, tokio::task::JoinHandle<Result<(), FrameworkError>>), FrameworkError> {
+    let (status_tx, _status_rx) = watch::channel(SimulationStatus::Stopped);
+    let simulation_data = Arc::new(RwLock::new(SimulationData {
+        current_time_secs: 0.0,
+        task_outputs: HashMap::new(),
+        task_execution_times_micros: HashMap::new(),
+    }));
+
+    let data_filter_for_web = Arc::clone(&simulation_data);
+    let data_filter = warp::any().map(move || data_filter_for_web.clone());
+
+    let status_tx_for_routes = status_tx.clone();
+
+    let combined_routes = warp::path!("hello")
+        .map(|| "Hello, world!")
+        .or(warp::path("control").and(warp::query::<HashMap<String, String>>()).map(move |params: HashMap<String, String>| {
+            if let Some(cmd) = params.get("cmd") {
+                match cmd.as_str() {
+                    "start" => {
+                        let _ = status_tx_for_routes.send(SimulationStatus::Running);
+                        "Simulation started."
+                    },
+                    "pause" => {
+                        let _ = status_tx_for_routes.send(SimulationStatus::Paused);
+                        "Simulation paused."
+                    },
+                    "resume" => {
+                        let _ = status_tx_for_routes.send(SimulationStatus::Running);
+                        "Simulation resumed."
+                    },
+                    "stop" => {
+                        let _ = status_tx_for_routes.send(SimulationStatus::Stopped);
+                        "Simulation stopped."
+                    },
+                    _ => "Unknown command.",
+                }
+            } else {
+                "No command specified."
+            }
+        }))
+        .or(warp::path!("data").and(data_filter).and_then(|data: Arc<RwLock<SimulationData>>| async move {
+            let data = data.read().await;
+            Ok::<_, warp::Rejection>(warp::reply::json(&*data))
+        }));
+
+    let server_handle = tokio::spawn(async move {
+        let (addr, server) = warp::serve(combined_routes).bind(([127, 0, 0, 1], 3030)).await;
+        println!("Web server bound to address: {:?}", addr);
+        server.await;
+        Ok::<(), FrameworkError>(()) // Explicitly return Ok on graceful shutdown
+    });
+
+    println!("Web server running on http://127.0.0.1:3030/hello");
+
+    Ok((status_tx, simulation_data, server_handle))
+}
+
 pub async fn run_framework(
     simulation_duration_secs_cli: u64,
     time_step_millis_cli: u64,
     config_file_path: Option<PathBuf>,
+    mut status_rx: watch::Receiver<SimulationStatus>,
+    simulation_data: Arc<RwLock<SimulationData>>,
 ) -> Result<(), FrameworkError> {
     println!("Framework is running...");
 
-    let config: SimulationConfig = if let Some(path) = config_file_path {
+    let config: SimulationConfig = {
+        let path = config_file_path.ok_or(FrameworkError::ConfigurationError("Configuration file path not provided.".to_string()))?;
         let config_content = fs::read_to_string(&path).await.map_err(|e| FrameworkError::IoError(e))?;
         toml::from_str(&config_content).map_err(|e| FrameworkError::TomlError(e))?
-    } else {
-        let config_str = r#"
-        [[tasks]]
-        type = "Fmu"
-        name = "FMU1"
-        path = "./fmus/fmu1.fmu"
-
-        [[tasks]]
-        type = "Fmu"
-        name = "FMU2"
-        path = "./fmus/fmu2.fmu"
-
-        [[tasks]]
-        type = "Gpio"
-        name = "GPIO_In"
-        pins = [1, 2, 3]
-
-        [[tasks]]
-        type = "Serial"
-        name = "Serial_Out"
-        port = "/dev/ttyUSB0"
-        baud_rate = 115200
-
-        [[tasks]]
-        type = "Udp"
-        name = "UDP_Comm"
-        local_addr = "127.0.0.1:8080"
-        remote_addr = "127.0.0.1:8081"
-
-        [[dependencies]]
-        from = "FMU1"
-        to = "FMU2"
-        type = "direct"
-        data_flow = "output_to_input"
-
-        [[dependencies]]
-        from = "FMU2"
-        to = "FMU1"
-        type = "memory_block"
-        data_flow = "feedback_signal"
-
-        [[dependencies]]
-        from = "GPIO_In"
-        to = "FMU1"
-        type = "direct"
-        data_flow = "gpio_data"
-
-        [[dependencies]]
-        from = "FMU2"
-        to = "Serial_Out"
-        type = "direct"
-        data_flow = "serial_data"
-
-        [[dependencies]]
-        from = "UDP_Comm"
-        to = "FMU1"
-        type = "direct"
-        data_flow = "udp_input"
-        "#;
-        toml::from_str(config_str).map_err(|e| FrameworkError::TomlError(e))?
     };
 
     println!("Loaded Configuration: {:#?}", config);
@@ -996,6 +1077,7 @@ pub async fn run_framework(
 
     let mut sim_graph = SimulationGraph::new();
     let mut task_factory = TaskFactory::new();
+    let mut io_task_indices: Vec<NodeIndex> = Vec::new();
 
     // Register task creators
     task_factory.register_task("Fmu", create_fmu_task);
@@ -1009,7 +1091,16 @@ pub async fn run_framework(
     // Populate sim_graph from config
     for task_config in config.tasks {
         let task = task_factory.create_task(task_config)?;
-        sim_graph.add_task(task.as_any().downcast_ref::<FmuTask>().unwrap().name.clone(), task);
+        let task_arc = Arc::new(RwLock::new(task));
+        let node_index = sim_graph.add_task(task_arc.read().await.get_name(), task_arc.clone());
+        // Check if the task is an IoTask and store its index
+        if task_arc.read().await.as_any().is::<GpioTask>() ||
+           task_arc.read().await.as_any().is::<SerialTask>() ||
+           task_arc.read().await.as_any().is::<UdpTask>() ||
+           task_arc.read().await.as_any().is::<AnalogTask>() ||
+           task_arc.read().await.as_any().is::<ModbusTcpTask>() {
+            io_task_indices.push(node_index);
+        }
     }
 
     for dep_config in config.dependencies {
@@ -1024,13 +1115,14 @@ pub async fn run_framework(
     let execution_order = sim_graph.get_execution_order()?;
 
     // Initialize I/O tasks
-    for node_index in sim_graph.graph.node_indices() {
-        let task = &mut sim_graph.graph[node_index];
-        if let Some(io_task) = task.as_any_mut().downcast_mut::<UdpTask>() {
-            io_task.initialize_io().await?;
-        } else if let Some(io_task) = task.as_any_mut().downcast_mut::<GpioTask>() {
+    for node_index in &io_task_indices {
+        let task_arc = sim_graph.graph[*node_index].clone();
+        let mut task = task_arc.write().await;
+        if let Some(io_task) = task.as_any_mut().downcast_mut::<GpioTask>() {
             io_task.initialize_io().await?;
         } else if let Some(io_task) = task.as_any_mut().downcast_mut::<SerialTask>() {
+            io_task.initialize_io().await?;
+        } else if let Some(io_task) = task.as_any_mut().downcast_mut::<UdpTask>() {
             io_task.initialize_io().await?;
         } else if let Some(io_task) = task.as_any_mut().downcast_mut::<AnalogTask>() {
             io_task.initialize_io().await?;
@@ -1039,69 +1131,20 @@ pub async fn run_framework(
         }
     }
 
-    let mut logger = Logger::new("simulation_log.csv")?;
+    let mut logger = if let Some(logging_config) = &config.logging {
+        let mut logged_output_names = Vec::new();
+        for (task_name, outputs) in &logging_config.logged_outputs {
+            for output_name in outputs {
+                logged_output_names.push(format!("{}.{}", task_name, output_name));
+            }
+        }
+        Logger::new(&logging_config.log_file, logged_output_names)?
+    } else {
+        Logger::new("simulation_log.csv", vec!["FMU1.output_var".to_string()])?
+    };
 
     // Write CSV headers
-    if let Err(e) = logger.write_headers(&["Time", "FMU1_output_var"]) {
-        eprintln!("Failed to write CSV headers: {}", e);
-        return Err(e);
-    }
-
-    // Web server for monitoring
-    let _routes_hello = warp::path!("hello")
-        .map(|| "Hello, world!");
-
-    let (status_tx, mut status_rx) = watch::channel(SimulationStatus::Stopped);
-    let simulation_data = Arc::new(RwLock::new(SimulationData {
-        current_time_secs: 0.0,
-        task_outputs: HashMap::new(),
-    }));
-
-    let data_filter_for_web = Arc::clone(&simulation_data);
-    let data_filter = warp::any().map(move || data_filter_for_web.clone());
-
-    let simulation_data_for_loop = Arc::clone(&simulation_data);
-
-    let combined_routes = _routes_hello
-        .or(warp::path("control").and(warp::query::<HashMap<String, String>>()).map(move |params: HashMap<String, String>| {
-            if let Some(cmd) = params.get("cmd") {
-                match cmd.as_str() {
-                    "start" => {
-                        let _ = status_tx.send(SimulationStatus::Running);
-                        "Simulation started."
-                    },
-                    "pause" => {
-                        let _ = status_tx.send(SimulationStatus::Paused);
-                        "Simulation paused."
-                    },
-                    "resume" => {
-                        let _ = status_tx.send(SimulationStatus::Running);
-                        "Simulation resumed."
-                    },
-                    "stop" => {
-                        let _ = status_tx.send(SimulationStatus::Stopped);
-                        "Simulation stopped."
-                    },
-                    _ => "Unknown command.",
-                }
-            } else {
-                "No command specified."
-            }
-        }))
-        .or(warp::path!("data").and(data_filter).and_then(|data: Arc<RwLock<SimulationData>>| async move {
-            let data = data.read().await;
-            Ok::<_, warp::Rejection>(warp::reply::json(&*data))
-        }));
-
-    let (tx, rx) = tokio::sync::oneshot::channel();
-    let server_handle = tokio::spawn(async move {
-        let (_addr, server) = warp::serve(combined_routes).bind_with_graceful_shutdown(([127, 0, 0, 1], 3030), async {
-            rx.await.ok();
-        });
-        server.await;
-    });
-
-    println!("Web server running on http://127.0.0.1:3030/hello");
+    logger.write_headers()?;
 
     // REQ-DETERMINISTIC-EXECUTION: Ensuring deterministic execution is crucial for real-time simulations.
     // This involves careful consideration of:
@@ -1136,14 +1179,43 @@ pub async fn run_framework(
                 current_time += time_step;
                 println!("Simulation Time: {:?}", current_time);
 
+                // Read all I/O inputs
+                for node_index in &io_task_indices {
+                    let task_arc = sim_graph.graph[*node_index].clone();
+                    let mut task = task_arc.write().await;
+                    if let Some(io_task) = task.as_any_mut().downcast_mut::<GpioTask>() {
+                        io_task.read_io().await?;
+                    } else if let Some(io_task) = task.as_any_mut().downcast_mut::<SerialTask>() {
+                        io_task.read_io().await?;
+                    } else if let Some(io_task) = task.as_any_mut().downcast_mut::<UdpTask>() {
+                        io_task.read_io().await?;
+                    } else if let Some(io_task) = task.as_any_mut().downcast_mut::<AnalogTask>() {
+                        io_task.read_io().await?;
+                    } else if let Some(io_task) = task.as_any_mut().downcast_mut::<ModbusTcpTask>() {
+                        io_task.read_io().await?;
+                    }
+                }
+
                 // Update shared simulation data
-                let mut sim_data_guard = simulation_data_for_loop.write().await;
+                let mut sim_data_guard = simulation_data.write().await;
                 sim_data_guard.current_time_secs = current_time.as_secs_f64();
                 sim_data_guard.task_outputs.clear();
+                sim_data_guard.task_execution_times_micros.clear();
 
                 for node_index in &execution_order {
-                    let task = &mut sim_graph.graph[*node_index];
+                    let task_arc = sim_graph.graph[*node_index].clone();
+                    let mut task = task_arc.write().await;
+
+                    let start_time = time::Instant::now();
                     task.execute(current_time).await;
+                    let end_time = time::Instant::now();
+                    let elapsed_micros = (end_time - start_time).as_micros() as u64;
+
+                    // Store execution time
+                    sim_data_guard.task_execution_times_micros.insert(
+                        task.get_name(),
+                        elapsed_micros,
+                    );
 
                     // Collect outputs for monitoring
                     let mut task_output_map = HashMap::new();
@@ -1153,29 +1225,39 @@ pub async fn run_framework(
                         }
                     }
                     if !task_output_map.is_empty() {
-                        sim_data_guard.task_outputs.insert(task.as_any().downcast_ref::<FmuTask>().unwrap().name.clone(), task_output_map);
+                        sim_data_guard.task_outputs.insert(task.get_name(), task_output_map);
                     }
 
                     // Log FMU1 output_var
-                    if let Some(fmu_task) = task.as_any_mut().downcast_mut::<FmuTask>() {
-                        if fmu_task.name == "FMU1" {
-                            if let Some(output_val) = fmu_task.get_output_value("output_var") {
-                                if let Err(e) = logger.write_record(&[
-                                    &format!("{:?}", current_time.as_secs_f64()),
-                                    &format!("{}", output_val),
-                                ]) {
-                                    eprintln!("Failed to write log record: {}", e);
-                                }
-                            }
-                        }
+                    if let Err(e) = logger.write_record(current_time.as_secs_f64(), &sim_data_guard.task_outputs) {
+                        eprintln!("Failed to write log record: {}", e);
                     }
                 }
                 drop(sim_data_guard); // Release the write lock
 
+                // Write all I/O outputs
+                for node_index in &io_task_indices {
+                    let task_arc = sim_graph.graph[*node_index].clone();
+                    let mut task = task_arc.write().await;
+                    if let Some(io_task) = task.as_any_mut().downcast_mut::<GpioTask>() {
+                        io_task.write_io().await?;
+                    }
+                    if let Some(io_task) = task.as_any_mut().downcast_mut::<SerialTask>() {
+                        io_task.write_io().await?;
+                    }
+                    if let Some(io_task) = task.as_any_mut().downcast_mut::<UdpTask>() {
+                        io_task.write_io().await?;
+                    }
+                    if let Some(io_task) = task.as_any_mut().downcast_mut::<AnalogTask>() {
+                        io_task.write_io().await?;
+                    }
+                    if let Some(io_task) = task.as_any_mut().downcast_mut::<ModbusTcpTask>() {
+                        io_task.write_io().await?;
+                    }
+                }
+
                 if current_time >= simulation_duration {
                     println!("Simulation finished.");
-                    // Shut down the web server gracefully
-                    let _ = tx.send(());
                     break;
                 }
             },
@@ -1185,7 +1267,6 @@ pub async fn run_framework(
             },
             SimulationStatus::Stopped => {
                 println!("Simulation Stopped.");
-                let _ = tx.send(());
                 break;
             },
         }
@@ -1193,7 +1274,5 @@ pub async fn run_framework(
 
     logger.flush()?;
 
-    // Wait for the server to shut down
-    let _ = server_handle.await;
     Ok(())
 }

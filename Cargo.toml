@@ -1,0 +1,17 @@
+[workspace]
+members = [
+    "framework",
+]
+
+[package]
+name = "r-sim"
+version = "0.1.0"
+edition = "2021"
+
+# This top-level package will likely become a runner or CLI for the framework
+# For now, it's just a placeholder.
+[dependencies]
+framework = { path = "./framework" }
+tokio = { version = "1", features = ["full"] }
+clap = { version = "4", features = ["derive"] }
+reqwest = { version = "0.11", features = ["json"] }

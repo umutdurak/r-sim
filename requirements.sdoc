@@ -9,6 +9,7 @@ TITLE: Real-Time Co-Simulation Framework
 STATEMENT: >
   The system shall be a real-time co-simulation framework developed in Rust,
   utilizing the Tokio runtime for asynchronous task management.
+STATUS: Implemented
 
 [GROUP]
 TITLE: FMU Co-Simulation
@@ -28,6 +29,7 @@ UID: REQ-FMU-LOADING
 TITLE: Dynamic FMU Loading
 STATEMENT: >
   The framework shall be able to dynamically load FMU binaries (.so or .dll) at runtime from a specified path.
+STATUS: Not Implemented
 REFINES: REQ-FMU-SUPPORT
 
 [REQUIREMENT]
@@ -35,6 +37,7 @@ UID: REQ-FMI-VERSION
 TITLE: FMI Standard Version
 STATEMENT: >
   The framework shall support at least FMI 2.0 for Co-Simulation. Support for FMI 3.0 is a future goal.
+STATUS: Not Implemented
 REFINES: REQ-FMU-SUPPORT
 
 [/GROUP]
@@ -48,12 +51,14 @@ UID: REQ-SCHEDULING
 TITLE: Real-Time Task Scheduling
 STATEMENT: >
   The framework shall schedule and execute simulation tasks in a pseudo-real-time manner, driven by the Tokio runtime.
+STATUS: Implemented
 
 [REQUIREMENT]
 UID: REQ-PERIODIC-TASKS
 TITLE: Periodic Task Execution
 STATEMENT: >
   FMUs and other simulation components (e.g., I/O tasks) shall be scheduled as periodic tasks with user-configurable execution rates.
+STATUS: Implemented
 REFINES: REQ-SCHEDULING
 
 [REQUIREMENT]
@@ -62,6 +67,7 @@ TITLE: Simulation Time Step Control
 STATEMENT: >
   The framework shall allow for user-configurable global simulation time steps,
   and manage the execution of periodic tasks and FMUs accordingly.
+STATUS: Implemented
 REFINES: REQ-FRAMEWORK
 
 [REQUIREMENT]
@@ -70,6 +76,7 @@ TITLE: Multi-Core / Parallel Execution Support
 STATEMENT: >
   The framework shall leverage multi-core processors to execute independent
   simulation tasks and FMUs in parallel, optimizing performance for complex scenarios.
+STATUS: Implemented (basic parallelism)
 REFINES: REQ-FRAMEWORK
 
 [REQUIREMENT]
@@ -77,12 +84,15 @@ UID: REQ-DATA-DEPENDENCY
 TITLE: Data Dependency Management
 STATEMENT: >
   The framework shall manage data dependencies between interconnected simulation components (e.g., FMUs, I/O tasks).
+STATUS: Implemented
+REFINES: REQ-DATA-DEPENDENCY
 
 [REQUIREMENT]
 UID: REQ-EXECUTION-ORDER
 TITLE: Automatic Execution Order Inference
 STATEMENT: >
   Based on the configured data dependencies, the framework shall automatically infer the correct execution order for all tasks within a single time step using topological sorting.
+STATUS: Implemented
 REFINES: REQ-DATA-DEPENDENCY
 
 [REQUIREMENT]
@@ -90,6 +100,7 @@ UID: REQ-CAUSALITY-RESOLUTION
 TITLE: Causality Problem Resolution
 STATEMENT: >
   The framework shall detect causal loops (algebraic cycles) in the dependency graph and report them to the user.
+STATUS: Implemented
 REFINES: REQ-DATA-DEPENDENCY
 
 [REQUIREMENT]
@@ -97,6 +108,7 @@ UID: REQ-MEMORY-BLOCKS
 TITLE: Memory Blocks for Loop Breaking
 STATEMENT: >
   Causal loops shall be resolvable by configuring specific data links to use a "memory" block, which introduces a one-step delay (z^-1), effectively breaking the cycle.
+STATUS: Implemented
 REFINES: REQ-CAUSALITY-RESOLUTION
 
 [/GROUP]
@@ -110,12 +122,15 @@ UID: REQ-IO-SUBSYSTEM
 TITLE: Input/Output Subsystem
 STATEMENT: >
   The framework shall provide a flexible and extensible I/O subsystem for interaction with hardware and external systems.
+STATUS: Implemented
+REFINES: REQ-FRAMEWORK
 
 [REQUIREMENT]
 UID: REQ-IO-GPIO
 TITLE: GPIO Task
 STATEMENT: >
   The I/O subsystem shall include a task for digital General-Purpose Input/Output (GPIO) on supported platforms (e.g., Raspberry Pi).
+STATUS: Implemented (placeholder)
 REFINES: REQ-IO-SUBSYSTEM
 
 [REQUIREMENT]
@@ -123,6 +138,7 @@ UID: REQ-IO-SERIAL
 TITLE: Serial Communication Task
 STATEMENT: >
   The I/O subsystem shall include a task for serial communication (e.g., UART, RS-232/485) with configurable parameters (baud rate, parity, etc.).
+STATUS: Implemented (placeholder)
 REFINES: REQ-IO-SUBSYSTEM
 
 [REQUIREMENT]
@@ -187,6 +203,7 @@ STATEMENT: >
   The I/O subsystem shall be capable of high-speed data acquisition and generation
   for critical signals, with configurable sampling rates to meet demanding
   real-time simulation requirements.
+STATUS: Not Implemented
 REFINES: REQ-IO-SUBSYSTEM
 
 [/GROUP]
@@ -266,6 +283,7 @@ TITLE: Deterministic Execution
 STATEMENT: >
   For a given simulation configuration and identical inputs, the framework shall
   produce deterministic and repeatable simulation results across multiple runs.
+STATUS: Not Implemented
 REFINES: REQ-FRAMEWORK
 
 [REQUIREMENT]
@@ -275,6 +293,7 @@ STATEMENT: >
   The framework shall implement robust error handling for FMU execution failures,
   I/O errors, and other runtime issues, providing options for graceful shutdown
   or configurable recovery mechanisms.
+STATUS: Not Implemented
 REFINES: REQ-FRAMEWORK
 
 [REQUIREMENT]
@@ -332,6 +351,7 @@ STATEMENT: >
   Furthermore, it shall present the current running tasks, FMUs, and their data
   dependencies, potentially with a graphical representation such as a causal block
   diagram, leveraging concepts from SysML v2 internal block diagrams.
+STATUS: In Progress
 REFINES: REQ-FRAMEWORK
 
 [/GROUP]
@@ -347,6 +367,7 @@ STATEMENT: >
   The framework shall provide clear guidelines and utilities for integrating
   models developed in external modeling environments (e.g., Simulink, AMESim)
   by supporting their export as FMUs.
+STATUS: Not Implemented
 REFINES: REQ-FRAMEWORK
 
 [REQUIREMENT]
@@ -355,6 +376,7 @@ TITLE: Online Parameter Access and Tuning
 STATEMENT: >
   The framework shall provide mechanisms to access and modify simulation parameters
   during runtime, enabling online tuning and calibration of models and I/O configurations.
+STATUS: Not Implemented
 REFINES: REQ-FRAMEWORK
 
 [REQUIREMENT]
@@ -364,6 +386,7 @@ STATEMENT: >
   The framework shall provide capabilities for defining, saving, loading, and
   managing different simulation scenarios, including variations in FMU parameters,
   I/O configurations, and test sequences.
+STATUS: Not Implemented
 REFINES: REQ-FRAMEWORK
 
 [/GROUP]
@@ -379,6 +402,7 @@ STATEMENT: >
   The framework shall provide mechanisms to inject faults (e.g., sensor failures,
   communication errors, component malfunctions) into the simulation during runtime
   to support robust testing and validation.
+STATUS: Not Implemented
 REFINES: REQ-FRAMEWORK
 
 [REQUIREMENT]
@@ -388,6 +412,7 @@ STATEMENT: >
   The framework shall explicitly support various X-in-the-Loop (XiL) testing methodologies,
   including Model-in-the-Loop (MIL), Software-in-the-Loop (SIL), and Hardware-in-the-Loop (HIL),
   by providing appropriate interfaces and functionalities for each.
+STATUS: Not Implemented
 REFINES: REQ-FRAMEWORK
 
 [REQUIREMENT]
@@ -397,6 +422,7 @@ STATEMENT: >
   The framework shall support the distribution of simulation tasks and FMUs
   across multiple networked computing nodes to enable scaling for large and
   complex simulation scenarios.
+STATUS: Not Implemented
 REFINES: REQ-FRAMEWORK
 
 [/GROUP]
