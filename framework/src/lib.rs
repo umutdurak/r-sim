@@ -50,6 +50,27 @@ pub struct SimulationData {
     pub task_execution_times_micros: HashMap<String, u64>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct WebTaskInfo {
+    pub name: String,
+    pub inputs: Vec<String>,
+    pub outputs: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WebDependencyInfo {
+    pub from_task: String,
+    pub to_task: String,
+    pub data_flow: String,
+    pub dep_type: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WebGraphInfo {
+    pub tasks: Vec<WebTaskInfo>,
+    pub dependencies: Vec<WebDependencyInfo>,
+}
+
 /// Defines the interface for any simulation task within the framework.
 /// Custom components should implement this trait to be integrated into the simulation graph.
 #[async_trait]
@@ -987,7 +1008,7 @@ pub async fn send_control_command(command: SimulationStatus) -> Result<(), Frame
     Ok(())
 }
 
-pub async fn start_web_server() -> Result<(watch::Sender<SimulationStatus>, Arc<RwLock<SimulationData>>, tokio::task::JoinHandle<Result<(), FrameworkError>>), FrameworkError> {
+pub async fn start_web_server(sim_graph_arc: Arc<RwLock<SimulationGraph>>) -> Result<(watch::Sender<SimulationStatus>, Arc<RwLock<SimulationData>>, tokio::task::JoinHandle<Result<(), FrameworkError>>), FrameworkError> {
     let (status_tx, _status_rx) = watch::channel(SimulationStatus::Stopped);
     let simulation_data = Arc::new(RwLock::new(SimulationData {
         current_time_secs: 0.0,
@@ -1027,16 +1048,60 @@ pub async fn start_web_server() -> Result<(watch::Sender<SimulationStatus>, Arc<
                 "No command specified."
             }
         }))
-        .or(warp::path!("data").and(data_filter).and_then(|data: Arc<RwLock<SimulationData>>| async move {
+        .or(warp::path!("data").and(data_filter.clone()).and_then(|data: Arc<RwLock<SimulationData>>| async move {
             let data = data.read().await;
             Ok::<_, warp::Rejection>(warp::reply::json(&*data))
+        }))
+        .or(warp::path!("graph").and(warp::any()).and_then(move || {
+            let sim_graph_for_web = Arc::clone(&sim_graph_arc);
+            async move {
+                let sim_graph_guard = sim_graph_for_web.read().await;
+                let mut tasks_info = Vec::new();
+                for node_index in sim_graph_guard.graph.node_indices() {
+                    let task_arc = sim_graph_guard.graph[node_index].clone();
+                    let task = task_arc.read().await;
+                    tasks_info.push(WebTaskInfo {
+                        name: task.get_name(),
+                        inputs: task.get_inputs(),
+                        outputs: task.get_outputs(),
+                    });
+                }
+
+                let mut dependencies_info = Vec::new();
+                for edge_index in sim_graph_guard.graph.edge_indices() {
+                    let (from_node, to_node) = sim_graph_guard.graph.edge_endpoints(edge_index).unwrap();
+                    let from_task_name = sim_graph_guard.graph[from_node].read().await.get_name();
+                    let to_task_name = sim_graph_guard.graph[to_node].read().await.get_name();
+                    let dep_type = match &sim_graph_guard.graph[edge_index] {
+                        DependencyType::Direct(data_flow) => WebDependencyInfo {
+                            from_task: from_task_name,
+                            to_task: to_task_name,
+                            data_flow: data_flow.clone(),
+                            dep_type: "direct".to_string(),
+                        },
+                        DependencyType::MemoryBlock(data_flow) => WebDependencyInfo {
+                            from_task: from_task_name,
+                            to_task: to_task_name,
+                            data_flow: data_flow.clone(),
+                            dep_type: "memory_block".to_string(),
+                        },
+                    };
+                    dependencies_info.push(dep_type);
+                }
+
+                let graph_info = WebGraphInfo {
+                    tasks: tasks_info,
+                    dependencies: dependencies_info,
+                };
+                Ok::<_, warp::Rejection>(warp::reply::json(&graph_info))
+            }
         }));
 
     let server_handle = tokio::spawn(async move {
-        let (addr, server) = warp::serve(combined_routes).bind(([127, 0, 0, 1], 3030)).await;
+        let addr = ([127, 0, 0, 1], 3030);
         println!("Web server bound to address: {:?}", addr);
-        server.await;
-        Ok::<(), FrameworkError>(()) // Explicitly return Ok on graceful shutdown
+        warp::serve(combined_routes).bind(addr).await;
+        Ok::<(), FrameworkError>(())
     });
 
     println!("Web server running on http://127.0.0.1:3030/hello");
@@ -1050,6 +1115,7 @@ pub async fn run_framework(
     config_file_path: Option<PathBuf>,
     mut status_rx: watch::Receiver<SimulationStatus>,
     simulation_data: Arc<RwLock<SimulationData>>,
+    sim_graph_arc: Arc<RwLock<SimulationGraph>>,
 ) -> Result<(), FrameworkError> {
     println!("Framework is running...");
 
@@ -1114,9 +1180,11 @@ pub async fn run_framework(
 
     let execution_order = sim_graph.get_execution_order()?;
 
+    *sim_graph_arc.write().await = sim_graph; // Update the shared sim_graph_arc
+
     // Initialize I/O tasks
     for node_index in &io_task_indices {
-        let task_arc = sim_graph.graph[*node_index].clone();
+        let task_arc = sim_graph_arc.read().await.graph[*node_index].clone();
         let mut task = task_arc.write().await;
         if let Some(io_task) = task.as_any_mut().downcast_mut::<GpioTask>() {
             io_task.initialize_io().await?;
@@ -1181,7 +1249,7 @@ pub async fn run_framework(
 
                 // Read all I/O inputs
                 for node_index in &io_task_indices {
-                    let task_arc = sim_graph.graph[*node_index].clone();
+                    let task_arc = sim_graph_arc.read().await.graph[*node_index].clone();
                     let mut task = task_arc.write().await;
                     if let Some(io_task) = task.as_any_mut().downcast_mut::<GpioTask>() {
                         io_task.read_io().await?;
@@ -1203,7 +1271,7 @@ pub async fn run_framework(
                 sim_data_guard.task_execution_times_micros.clear();
 
                 for node_index in &execution_order {
-                    let task_arc = sim_graph.graph[*node_index].clone();
+                    let task_arc = sim_graph_arc.read().await.graph[*node_index].clone();
                     let mut task = task_arc.write().await;
 
                     let start_time = time::Instant::now();
@@ -1237,7 +1305,7 @@ pub async fn run_framework(
 
                 // Write all I/O outputs
                 for node_index in &io_task_indices {
-                    let task_arc = sim_graph.graph[*node_index].clone();
+                    let task_arc = sim_graph_arc.read().await.graph[*node_index].clone();
                     let mut task = task_arc.write().await;
                     if let Some(io_task) = task.as_any_mut().downcast_mut::<GpioTask>() {
                         io_task.write_io().await?;

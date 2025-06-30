@@ -59,7 +59,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Using default embedded configuration.");
             }
 
-            let (status_tx, simulation_data, server_handle) = framework::start_web_server().await?;
+            let sim_graph_arc = std::sync::Arc::new(tokio::sync::RwLock::new(framework::SimulationGraph::new()));
+
+            let (status_tx, simulation_data, server_handle) = framework::start_web_server(sim_graph_arc.clone()).await?;
 
             let simulation_task = framework::run_framework(
                 simulation_duration_secs,
@@ -67,6 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 config_file,
                 status_tx.subscribe(),
                 simulation_data,
+                sim_graph_arc.clone(),
             );
 
             let (simulation_result, server_result) = tokio::join!(simulation_task, server_handle);
