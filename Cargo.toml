@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "framework",
+    "fmu_test",
 ]
 
 [package]

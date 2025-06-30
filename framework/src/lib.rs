@@ -13,6 +13,7 @@ use tokio::sync::{watch, RwLock};
 use std::sync::Arc;
 use thiserror::Error;
 use async_trait::async_trait;
+use libloading::{Library, Symbol};
 
 #[derive(Error, Debug)]
 pub enum FrameworkError {
@@ -30,6 +31,8 @@ pub enum FrameworkError {
     TaskExecutionError(String),
     #[error("Web server error: {0}")]
     WebServerError(String),
+    #[error("Libloading error: {0}")]
+    LibloadingError(String),
     #[error("Unknown error: {0}")]
     Unknown(String),
 }
@@ -156,15 +159,28 @@ pub struct FmuTask {
     name: String,
     inputs: HashMap<String, f64>,
     outputs: HashMap<String, f64>,
+    library: Library,
+    do_step_fn: Symbol<'static, unsafe extern "C" fn(f64) -> f64>,
 }
 
 impl FmuTask {
-    pub fn new(name: String) -> Self {
-        FmuTask { 
+    pub fn new(name: String, path: String) -> Result<Self, FrameworkError> {
+        let library = unsafe { Library::new(path).map_err(|e| FrameworkError::LibloadingError(e.to_string()))? };
+        let do_step_fn_raw: Symbol<unsafe extern "C" fn(f64) -> f64> = unsafe { 
+            library.get(b"do_step").map_err(|e| FrameworkError::LibloadingError(e.to_string()))?
+        };
+
+        // SAFETY: This transmute is safe because `library` is moved into `self`,
+        // ensuring it lives as long as `do_step_fn`.
+        let do_step_fn = unsafe { std::mem::transmute(do_step_fn_raw) };
+
+        Ok(FmuTask { 
             name,
             inputs: HashMap::new(),
             outputs: HashMap::new(),
-        }
+            library,
+            do_step_fn,
+        })
     }
 }
 
@@ -172,11 +188,9 @@ impl FmuTask {
 impl SimulationTask for FmuTask {
     async fn execute(&mut self, current_time: Duration) {
         println!("  Executing FMU Task {}: {:?}", self.name, current_time);
-        // In a real FMU, this would involve calling the FMU's do_step method
-        // and updating internal states based on inputs and producing outputs.
-        // For now, let's just simulate some output change
+        let output = unsafe { (self.do_step_fn)(current_time.as_secs_f64()) };
         if let Some(output_val) = self.outputs.get_mut("output_var") {
-            *output_val = current_time.as_secs_f64();
+            *output_val = output;
         }
     }
 
@@ -885,7 +899,7 @@ pub struct SimulationConfig {
 // Task creator functions
 fn create_fmu_task(config: TaskConfig) -> Result<Box<dyn SimulationTask>, FrameworkError> {
     if let TaskConfig::Fmu(cfg) = config {
-        Ok(Box::new(FmuTask::new(cfg.name)))
+        Ok(Box::new(FmuTask::new(cfg.name, cfg.path)?))
     } else {
         Err(FrameworkError::ConfigurationError("Invalid config for FMU task".to_string()))
     }
