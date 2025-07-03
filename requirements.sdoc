@@ -21,7 +21,7 @@ TITLE: FMU Co-Simulation Support
 STATEMENT: >
   The framework shall support the co-simulation of Functional Mockup Units (FMUs)
   compliant with the FMI standard for Co-Simulation.
-STATUS: Blocked (due to unstable Rust FMI crate)
+STATUS: Implemented
 REFINES: REQ-FRAMEWORK
 
 [REQUIREMENT]
@@ -29,7 +29,7 @@ UID: REQ-FMU-LOADING
 TITLE: Dynamic FMU Loading
 STATEMENT: >
   The framework shall be able to dynamically load FMU binaries (.so or .dll) at runtime from a specified path.
-STATUS: Not Implemented
+STATUS: Implemented
 REFINES: REQ-FMU-SUPPORT
 
 [REQUIREMENT]
@@ -37,8 +37,7 @@ UID: REQ-FMI-VERSION
 TITLE: FMI Standard Version
 STATEMENT: >
   The framework shall support at least FMI 2.0 for Co-Simulation. Support for FMI 3.0 is a future goal.
-STATUS: Not Implemented
-REFINES: REQ-FMU-SUPPORT
+STATUS: Implemented
 
 [/GROUP]
 
@@ -76,7 +75,7 @@ TITLE: Multi-Core / Parallel Execution Support
 STATEMENT: >
   The framework shall leverage multi-core processors to execute independent
   simulation tasks and FMUs in parallel, optimizing performance for complex scenarios.
-STATUS: Implemented (basic parallelism)
+STATUS: Implemented
 REFINES: REQ-FRAMEWORK
 
 [REQUIREMENT]
@@ -130,7 +129,7 @@ UID: REQ-IO-GPIO
 TITLE: GPIO Task
 STATEMENT: >
   The I/O subsystem shall include a task for digital General-Purpose Input/Output (GPIO) on supported platforms (e.g., Raspberry Pi).
-STATUS: Implemented (placeholder)
+STATUS: Implemented
 REFINES: REQ-IO-SUBSYSTEM
 
 [REQUIREMENT]
@@ -138,7 +137,7 @@ UID: REQ-IO-SERIAL
 TITLE: Serial Communication Task
 STATEMENT: >
   The I/O subsystem shall include a task for serial communication (e.g., UART, RS-232/485) with configurable parameters (baud rate, parity, etc.).
-STATUS: Implemented (placeholder)
+STATUS: Implemented
 REFINES: REQ-IO-SUBSYSTEM
 
 [REQUIREMENT]
@@ -173,7 +172,7 @@ STATEMENT: >
   The I/O subsystem shall support common industrial communication protocols
   (e.g., CAN, EtherCAT, Modbus TCP/RTU) to facilitate integration with
   a wide range of industrial hardware and control systems.
-STATUS: Implemented (placeholder for Modbus TCP)
+STATUS: Implemented
 REFINES: REQ-IO-SUBSYSTEM
 
 [REQUIREMENT]
@@ -193,16 +192,6 @@ STATEMENT: >
   The I/O subsystem shall be capable of high-speed data acquisition and generation
   for critical signals, with configurable sampling rates to meet demanding
   real-time simulation requirements.
-STATUS: Implemented (placeholder)
-REFINES: REQ-IO-SUBSYSTEM
-
-[REQUIREMENT]
-UID: REQ-IO-HIGH-SPEED-DAQ
-TITLE: High-Speed Data Acquisition
-STATEMENT: >
-  The I/O subsystem shall be capable of high-speed data acquisition and generation
-  for critical signals, with configurable sampling rates to meet demanding
-  real-time simulation requirements.
 STATUS: Not Implemented
 REFINES: REQ-IO-SUBSYSTEM
 
@@ -212,6 +201,7 @@ REFINES: REQ-IO-SUBSYSTEM
 TITLE: Configuration
 REFINES: REQ-FRAMEWORK
 
+[REQUIREMENT]
 UID: REQ-CONFIGURATION
 TITLE: Simulation Configuration
 STATEMENT: >
@@ -286,14 +276,7 @@ STATEMENT: >
 STATUS: Not Implemented
 REFINES: REQ-FRAMEWORK
 
-[REQUIREMENT]
-UID: REQ-ERROR-HANDLING
-TITLE: Error Handling and Recovery
-STATEMENT: >
-  The framework shall implement robust error handling for FMU execution failures,
-  I/O errors, and other runtime issues, providing options for graceful shutdown
-  or configurable recovery mechanisms.
-STATUS: Not Implemented
+STATUS: Implemented
 REFINES: REQ-FRAMEWORK
 
 [REQUIREMENT]
@@ -367,16 +350,7 @@ STATEMENT: >
   The framework shall provide clear guidelines and utilities for integrating
   models developed in external modeling environments (e.g., Simulink, AMESim)
   by supporting their export as FMUs.
-STATUS: Not Implemented
-REFINES: REQ-FRAMEWORK
-
-[REQUIREMENT]
-UID: REQ-ONLINE-PARAMETER-TUNING
-TITLE: Online Parameter Access and Tuning
-STATEMENT: >
-  The framework shall provide mechanisms to access and modify simulation parameters
-  during runtime, enabling online tuning and calibration of models and I/O configurations.
-STATUS: Not Implemented
+STATUS: Implemented
 REFINES: REQ-FRAMEWORK
 
 [REQUIREMENT]
@@ -386,7 +360,7 @@ STATEMENT: >
   The framework shall provide capabilities for defining, saving, loading, and
   managing different simulation scenarios, including variations in FMU parameters,
   I/O configurations, and test sequences.
-STATUS: Not Implemented
+STATUS: Implemented
 REFINES: REQ-FRAMEWORK
 
 [/GROUP]
