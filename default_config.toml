@@ -20,4 +20,8 @@ name = "UDP_Comm"
 local_addr = "127.0.0.1:8080"
 remote_addr = "127.0.0.1:8081"
 
+[[tasks]]
+type = "Custom"
+name = "MyCustomTask"
+
 dependencies = []

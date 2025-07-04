@@ -1,0 +1,285 @@
+[DOCUMENT]
+TITLE: r-sim Framework Test Plan (MVP)
+OPTIONS:
+  REQUIREMENT_STYLE: Table
+
+[GROUP]
+TITLE: Core Framework & Simulation Execution
+
+[TEST_CASE]
+UID: TC-CORE-001
+TITLE: Verify basic simulation execution with periodic tasks and time step control.
+REFINES: REQ-FRAMEWORK, REQ-SCHEDULING, REQ-PERIODIC-TASKS, REQ-TIME-STEP-CONTROL
+PRECONDITIONS: A valid `default_config.toml` with at least one `CustomTask` configured to print its execution time.
+STEPS:
+  1. Run `r-sim run -c default_config.toml -s 5 -t 100` (5s duration, 100ms timestep).
+EXPECTED_RESULTS: Simulation runs for 5 seconds, `CustomTask` prints execution messages every 100ms.
+TEST_TYPE: System, Functional
+
+[TEST_CASE]
+UID: TC-CORE-002
+TITLE: Verify basic parallelism of independent tasks.
+REFINES: REQ-MULTI-CORE
+PRECONDITIONS: A configuration file with two independent `CustomTask` instances.
+STEPS:
+  1. Run `r-sim run -c two_independent_tasks.toml`.
+EXPECTED_RESULTS: Both `CustomTask` instances execute concurrently, indicated by interleaved log messages.
+TEST_TYPE: System, Performance
+
+[TEST_CASE]
+UID: TC-CORE-003
+TITLE: Verify correct data flow and execution order based on dependencies.
+REFINES: REQ-DATA-DEPENDENCY, REQ-EXECUTION-ORDER
+PRECONDITIONS: A configuration file with two `CustomTask` instances, where `TaskB` depends on an output from `TaskA`.
+STEPS:
+  1. Run `r-sim run -c dependent_tasks.toml`.
+EXPECTED_RESULTS: `TaskA` executes before `TaskB` in each time step. `TaskB` correctly receives and uses the output from `TaskA`.
+TEST_TYPE: System, Functional
+
+[TEST_CASE]
+UID: TC-CORE-004
+TITLE: Verify detection of causal loops and resolution using memory blocks.
+REFINES: REQ-CAUSALITY-RESOLUTION, REQ-MEMORY-BLOCKS
+PRECONDITIONS: A configuration file with a causal loop (e.g., `TaskA` depends on `TaskB`, `TaskB` depends on `TaskA`) and one dependency configured as a `memory_block`.
+STEPS:
+  1. Run `r-sim run -c causal_loop_memory_block.toml`.
+EXPECTED_RESULTS: Simulation starts without reporting a causal loop error. The `memory_block` dependency introduces a one-step delay in data propagation.
+TEST_TYPE: System, Functional
+
+[TEST_CASE]
+UID: TC-CORE-005
+TITLE: Verify simulation time synchronization with wall-clock time using time multiplier.
+REFINES: REQ-TIME-SYNCHRONIZATION
+PRECONDITIONS: A configuration file with a `time_multiplier` set (e.g., `time_multiplier = 0.5` for half real-time speed).
+STEPS:
+  1. Run `r-sim run -c slow_sim.toml -s 10`.
+EXPECTED_RESULTS: A 10-second simulation takes approximately 20 seconds of wall-clock time.
+TEST_TYPE: System, Performance
+
+[TEST_CASE]
+UID: TC-CORE-006
+TITLE: Verify reporting of task execution times.
+REFINES: REQ-PERFORMANCE-METRICS
+PRECONDITIONS: A valid configuration file.
+STEPS:
+  1. Run `r-sim run -c default_config.toml`.
+EXPECTED_RESULTS: Console output includes "task_execution_times_micros" for each task.
+TEST_TYPE: System, Functional
+
+[/GROUP]
+
+[GROUP]
+TITLE: FMU Co-Simulation
+
+[TEST_CASE]
+UID: TC-FMU-001
+TITLE: Verify loading and basic execution of an FMI 2.0 Co-Simulation FMU.
+REFINES: REQ-FMU-SUPPORT, REQ-FMU-LOADING, REQ-FMI-VERSION
+PRECONDITIONS: A valid FMI 2.0 Co-Simulation FMU file (`.fmu`) and a configuration file that references it.
+STEPS:
+  1. Place the FMU in a known path.
+  2. Configure `r-sim` to load and execute the FMU.
+  3. Run `r-sim run -c fmu_test.toml`.
+EXPECTED_RESULTS: FMU loads successfully. Simulation runs without errors related to FMU loading or basic execution.
+TEST_TYPE: System, Functional
+
+[TEST_CASE]
+UID: TC-FMU-002
+TITLE: Verify parameter access and tuning for an FMU.
+REFINES: REQ-FMI-VERSION
+PRECONDITIONS: A valid FMI 2.0 Co-Simulation FMU with tunable parameters and a configuration file that references it.
+STEPS:
+  1. Run `r-sim run -c fmu_tunable_param.toml`.
+  2. Use the web interface (`/parameters` and `/parameters/set`) to read and modify an FMU parameter.
+EXPECTED_RESULTS: The web interface displays the FMU's tunable parameters. Changing a parameter via the web interface successfully updates the FMU's internal state (observable through outputs or logs).
+TEST_TYPE: System, Functional
+
+[/GROUP]
+
+[GROUP]
+TITLE: I/O Subsystem
+
+[TEST_CASE]
+UID: TC-IO-001
+TITLE: Verify GPIO task initialization and simulated I/O operations.
+REFINES: REQ-IO-SUBSYSTEM, REQ-IO-GPIO
+PRECONDITIONS: A configuration file with a `GpioTask`.
+STEPS:
+  1. Run `r-sim run -c gpio_test.toml`.
+EXPECTED_RESULTS: Console output indicates successful GPIO task initialization, and simulated read/write operations.
+TEST_TYPE: System, Functional
+
+[TEST_CASE]
+UID: TC-IO-002
+TITLE: Verify Serial task initialization and simulated I/O operations.
+REFINES: REQ-IO-SERIAL
+PRECONDITIONS: A configuration file with a `SerialTask`.
+STEPS:
+  1. Run `r-sim run -c serial_test.toml`.
+EXPECTED_RESULTS: Console output indicates successful Serial task initialization, and simulated read/write operations.
+TEST_TYPE: System, Functional
+
+[TEST_CASE]
+UID: TC-IO-003
+TITLE: Verify UDP task initialization and simulated data exchange.
+REFINES: REQ-IO-UDP
+PRECONDITIONS: A configuration file with a `UdpTask` configured for local communication (e.g., `127.0.0.1`).
+STEPS:
+  1. Run `r-sim run -c udp_test.toml`.
+  2. (Optional) Use an external tool to send/receive UDP packets to/from the configured addresses.
+EXPECTED_RESULTS: Console output indicates successful UDP task initialization and simulated send/receive operations. If external tool used, data is exchanged correctly.
+TEST_TYPE: System, Functional
+
+[TEST_CASE]
+UID: TC-IO-004
+TITLE: Verify Analog task initialization and simulated I/O operations.
+REFINES: REQ-IO-ANALOG
+PRECONDITIONS: A configuration file with an `AnalogTask`.
+STEPS:
+  1. Run `r-sim run -c analog_test.toml`.
+EXPECTED_RESULTS: Console output indicates successful Analog task initialization, and simulated read/write operations.
+TEST_TYPE: System, Functional
+
+[TEST_CASE]
+UID: TC-IO-005
+TITLE: Verify that custom tasks can be integrated.
+REFINES: REQ-IO-EXTENSIBILITY
+PRECONDITIONS: A custom Rust task implemented and registered in `framework/src/lib.rs` (as demonstrated in the code).
+STEPS:
+  1. Configure `r-sim` to use a `CustomTask`.
+  2. Run `r-sim run -c custom_task.toml`.
+EXPECTED_RESULTS: The `CustomTask` executes and its `execute` method's print statements appear in the console.
+TEST_TYPE: System, Functional
+
+[TEST_CASE]
+UID: TC-IO-006
+TITLE: Verify Modbus TCP task initialization and simulated I/O.
+REFINES: REQ-IO-INDUSTRIAL-PROTOCOLS
+PRECONDITIONS: A configuration file with a `ModbusTcpTask`.
+STEPS:
+  1. Run `r-sim run -c modbus_tcp_test.toml`.
+EXPECTED_RESULTS: Console output indicates successful Modbus TCP task initialization and simulated read/write operations.
+TEST_TYPE: System, Functional
+
+[TEST_CASE]
+UID: TC-IO-007
+TITLE: Verify synchronized I/O operations within a time step.
+REFINES: REQ-IO-SYNCHRONIZED
+PRECONDITIONS: A configuration file with multiple I/O tasks (e.g., GPIO and UDP) configured.
+STEPS:
+  1. Run `r-sim run -c synchronized_io.toml`.
+EXPECTED_RESULTS: Observe logs to confirm that all I/O inputs are read before task execution, and all I/O outputs are written after task execution within each time step.
+TEST_TYPE: System, Functional
+
+[/GROUP]
+
+[GROUP]
+TITLE: Configuration & Control
+
+[TEST_CASE]
+UID: TC-CONF-001
+TITLE: Verify loading of simulation configuration from a TOML file.
+REFINES: REQ-CONFIGURATION, REQ-CONFIG-FORMAT
+PRECONDITIONS: A valid `simulation_config.toml` file.
+STEPS:
+  1. Run `r-sim run -c simulation_config.toml`.
+EXPECTED_RESULTS: Simulation starts and runs according to the parameters defined in `simulation_config.toml`.
+TEST_TYPE: System, Functional
+
+[TEST_CASE]
+UID: TC-CONF-002
+TITLE: Verify simulation lifecycle control via CLI.
+REFINES: REQ-SIM-LIFECYCLE
+PRECONDITIONS: A running `r-sim` instance (e.g., started with `r-sim run`).
+STEPS:
+  1. In a separate terminal, run `r-sim control pause`.
+  2. Observe `r-sim` console.
+  3. Run `r-sim control resume`.
+  4. Observe `r-sim` console.
+  5. Run `r-sim control stop`.
+EXPECTED_RESULTS: `r-sim` pauses, resumes, and stops as commanded.
+TEST_TYPE: System, Functional
+
+[TEST_CASE]
+UID: TC-CONF-003
+TITLE: Verify simulation data logging to CSV.
+REFINES: REQ-DATA-LOGGING
+PRECONDITIONS: A configuration file with `logging` enabled.
+STEPS:
+  1. Run `r-sim run -c logging_config.toml -s 5`.
+  2. After simulation, open `simulation_log.csv`.
+EXPECTED_RESULTS: `simulation_log.csv` is created and contains time-stamped data for the configured outputs.
+TEST_TYPE: System, Functional
+
+[TEST_CASE]
+UID: TC-CONF-004
+TITLE: Verify real-time monitoring via web interface.
+REFINES: REQ-REALTIME-MONITORING, REQ-WEB-INTERFACE
+PRECONDITIONS: A running `r-sim` instance.
+STEPS:
+  1. Open a web browser to `http://127.0.0.1:3030/data`.
+  2. Open `http://127.0.0.1:3030/graph`.
+EXPECTED_RESULTS: The `/data` endpoint displays real-time simulation data (current time, task outputs, execution times). The `/graph` endpoint displays task and dependency information.
+TEST_TYPE: System, Functional
+
+[TEST_CASE]
+UID: TC-CONF-005
+TITLE: Verify CLI help and basic command execution.
+REFINES: REQ-CLI
+PRECONDITIONS: None.
+STEPS:
+  1. Run `r-sim --help`.
+  2. Run `r-sim run --help`.
+  3. Run `r-sim control --help`.
+  4. Run `r-sim scenario --help`.
+EXPECTED_RESULTS: Help messages are displayed correctly for all commands and subcommands.
+TEST_TYPE: System, Usability
+
+[TEST_CASE]
+UID: TC-CONF-006
+TITLE: Verify saving and loading of scenarios.
+REFINES: REQ-SCENARIO-MANAGEMENT
+PRECONDITIONS: A `simulation_config.toml` file.
+STEPS:
+  1. Run `r-sim scenario save my_test_scenario -c simulation_config.toml`.
+  2. Run `r-sim scenario list`.
+  3. Run `r-sim scenario load my_test_scenario -s 5`.
+EXPECTED_RESULTS: "my_test_scenario.toml" is created in the `scenarios` directory. "my_test_scenario" appears in the list. The simulation starts using the loaded scenario's configuration.
+TEST_TYPE: System, Functional
+
+[/GROUP]
+
+[GROUP]
+TITLE: Robustness
+
+[TEST_CASE]
+UID: TC-ROB-001
+TITLE: Verify error handling for invalid configuration.
+REFINES: REQ-ERROR-HANDLING
+PRECONDITIONS: An invalid `config.toml` (e.g., missing required fields, malformed TOML).
+STEPS:
+  1. Run `r-sim run -c invalid_config.toml`.
+EXPECTED_RESULTS: `r-sim` exits gracefully with an informative error message indicating a configuration error.
+TEST_TYPE: System, Functional
+
+[TEST_CASE]
+UID: TC-ROB-002
+TITLE: Verify error handling for non-existent FMU.
+REFINES: REQ-ERROR-HANDLING
+PRECONDITIONS: A configuration file referencing a non-existent FMU path.
+STEPS:
+  1. Run `r-sim run -c non_existent_fmu.toml`.
+EXPECTED_RESULTS: `r-sim` exits gracefully with an informative error message indicating the FMU could not be loaded.
+TEST_TYPE: System, Functional
+
+[TEST_CASE]
+UID: TC-ROB-003
+TITLE: Verify error handling for I/O task initialization failure.
+REFINES: REQ-ERROR-HANDLING
+PRECONDITIONS: A configuration file with an I/O task configured with invalid parameters (e.g., an invalid serial port).
+STEPS:
+  1. Run `r-sim run -c invalid_io_config.toml`.
+EXPECTED_RESULTS: `r-sim` exits gracefully with an informative error message related to the I/O task initialization.
+TEST_TYPE: System, Functional
+
+[/GROUP]

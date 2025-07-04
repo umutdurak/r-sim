@@ -22,7 +22,7 @@ STATEMENT: >
   The framework shall support the co-simulation of Functional Mockup Units (FMUs)
   compliant with the FMI standard for Co-Simulation.
 STATUS: Implemented
-REFINES: REQ-FRAMEWORK
+REFINES: REQ-FMU-SUPPORT
 
 [REQUIREMENT]
 UID: REQ-FMU-LOADING
@@ -37,7 +37,7 @@ UID: REQ-FMI-VERSION
 TITLE: FMI Standard Version
 STATEMENT: >
   The framework shall support at least FMI 2.0 for Co-Simulation. Support for FMI 3.0 is a future goal.
-STATUS: Implemented
+STATUS: Blocked (due to unstable Rust FMI crate)
 
 [/GROUP]
 
@@ -276,6 +276,13 @@ STATEMENT: >
 STATUS: Not Implemented
 REFINES: REQ-FRAMEWORK
 
+[REQUIREMENT]
+UID: REQ-ERROR-HANDLING
+TITLE: Error Handling and Recovery
+STATEMENT: >
+  The framework shall implement robust error handling for FMU execution failures,
+  I/O errors, and other runtime issues, providing options for graceful shutdown
+  or configurable recovery mechanisms.
 STATUS: Implemented
 REFINES: REQ-FRAMEWORK
 
@@ -398,5 +405,16 @@ STATEMENT: >
   complex simulation scenarios.
 STATUS: Not Implemented
 REFINES: REQ-FRAMEWORK
+
+[/GROUP]
+
+[GROUP]
+TITLE: Current Framework Status
+
+[NOTE]
+TITLE: Post-Compilation Fixes
+STATEMENT: >
+  The framework currently compiles successfully after addressing duplicate code definitions and error handling issues. A minor `unused import` warning for `tokio::net::UdpSocket` remains, but does not affect functionality. The `REQ-FMI-VERSION` remains blocked due to the instability of the Rust FMI crate.
+[/NOTE]
 
 [/GROUP]
