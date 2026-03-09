@@ -1,0 +1,6 @@
+[book]
+title = "Real-Time Co-Simulation with r-sim"
+authors = ["Umut Durak"]
+language = "en"
+multilingual = false
+src = "src"
