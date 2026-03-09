@@ -13,7 +13,7 @@ REFINES: REQ-FRAMEWORK, REQ-SCHEDULING, REQ-PERIODIC-TASKS, REQ-TIME-STEP-CONTRO
 PRECONDITIONS: A valid `default_config.toml` with at least one `CustomTask` configured to print its execution time.
 STEPS:
   1. Run `r-sim run -c default_config.toml -s 5 -t 100` (5s duration, 100ms timestep).
-EXPECTED_RESULTS: Simulation runs for 5 seconds, `CustomTask` prints execution messages every 100ms.
+EXPECTED_RESULTS: Simulation runs for 5 seconds, `CustomTask` prints execution messages every 100ms. The output cadence matches the configured time step, confirming periodic scheduling.
 TEST_TYPE: System, Functional
 
 [TEST_CASE]
@@ -66,6 +66,32 @@ STEPS:
 EXPECTED_RESULTS: Console output includes "task_execution_times_micros" for each task.
 TEST_TYPE: System, Functional
 
+[TEST_CASE]
+UID: TC-CORE-007
+TITLE: Verify deterministic and repeatable simulation results.
+REFINES: REQ-DETERMINISTIC-EXECUTION
+PRECONDITIONS: A configuration file with at least two `CustomTask` instances and defined dependencies, producing measurable outputs.
+STEPS:
+  1. Run `r-sim run -c deterministic_test.toml -s 5 -t 100`.
+  2. Record all simulation outputs.
+  3. Run the same command again with identical inputs.
+  4. Compare outputs from both runs.
+EXPECTED_RESULTS: Both runs produce bitwise-identical simulation results for the same inputs and configuration.
+TEST_TYPE: System, Functional
+
+[TEST_CASE]
+UID: TC-CORE-008
+TITLE: Verify custom component integration via the TaskFactory API.
+REFINES: REQ-CUSTOM-COMPONENT-INTEGRATION
+PRECONDITIONS: A custom Rust simulation component implementing `SimulationTask`, registered via `TaskFactory`. A configuration file that references it with inputs, outputs, and tunable parameters.
+STEPS:
+  1. Register the custom component with `TaskFactory::register_task`.
+  2. Configure `r-sim` to use the custom component in `custom_component_api_test.toml`.
+  3. Run `r-sim run -c custom_component_api_test.toml -s 5`.
+  4. Verify the custom component participates in the simulation graph.
+EXPECTED_RESULTS: The custom component executes, its inputs are populated from upstream tasks, its outputs are consumed by downstream tasks, and its parameters are accessible via the web interface.
+TEST_TYPE: System, Functional
+
 [/GROUP]
 
 [GROUP]
@@ -83,6 +109,7 @@ STEPS:
 EXPECTED_RESULTS: FMU loads successfully. Simulation runs without errors related to FMU loading or basic execution.
 TEST_TYPE: System, Functional
 
+
 [TEST_CASE]
 UID: TC-FMU-002
 TITLE: Verify parameter access and tuning for an FMU.
@@ -93,6 +120,19 @@ STEPS:
   2. Use the web interface (`/parameters` and `/parameters/set`) to read and modify an FMU parameter.
 EXPECTED_RESULTS: The web interface displays the FMU's tunable parameters. Changing a parameter via the web interface successfully updates the FMU's internal state (observable through outputs or logs).
 TEST_TYPE: System, Functional
+
+[TEST_CASE]
+UID: TC-FMU-003
+TITLE: Verify integration of a model exported as an FMU from an external modeling environment.
+REFINES: REQ-MODEL-INTEGRATION, REQ-FMU-SUPPORT
+PRECONDITIONS: An FMI 2.0 Co-Simulation FMU exported from an external modeling environment (e.g., Simulink, OpenModelica) and a configuration file that references it.
+STEPS:
+  1. Export a simple model as an FMU from an external tool.
+  2. Place the FMU in a known path.
+  3. Configure `r-sim` to load and execute the FMU via `model_integration_test.toml`.
+  4. Run `r-sim run -c model_integration_test.toml -s 5`.
+EXPECTED_RESULTS: The externally-exported FMU loads and executes correctly. Simulation outputs match expected model behavior.
+TEST_TYPE: System, Integration
 
 [/GROUP]
 
@@ -143,7 +183,7 @@ TEST_TYPE: System, Functional
 [TEST_CASE]
 UID: TC-IO-005
 TITLE: Verify that custom tasks can be integrated.
-REFINES: REQ-IO-EXTENSIBILITY
+REFINES: REQ-IO-EXTENSIBILITY, REQ-CUSTOM-COMPONENT-INTEGRATION
 PRECONDITIONS: A custom Rust task implemented and registered in `framework/src/lib.rs` (as demonstrated in the code).
 STEPS:
   1. Configure `r-sim` to use a `CustomTask`.
@@ -170,6 +210,17 @@ STEPS:
   1. Run `r-sim run -c synchronized_io.toml`.
 EXPECTED_RESULTS: Observe logs to confirm that all I/O inputs are read before task execution, and all I/O outputs are written after task execution within each time step.
 TEST_TYPE: System, Functional
+
+[TEST_CASE]
+UID: TC-IO-008
+TITLE: Verify high-speed data acquisition with configurable sampling rates.
+REFINES: REQ-IO-HIGH-SPEED-DAQ
+PRECONDITIONS: A configuration file with an `AnalogTask` configured with a high sampling rate (e.g., `sampling_rate_hz = 10000`).
+STEPS:
+  1. Run `r-sim run -c high_speed_daq_test.toml -s 2`.
+  2. Examine logged data for the high-speed channel.
+EXPECTED_RESULTS: Data is acquired at the configured high sampling rate. The logged output file contains the expected number of samples (e.g., ~20000 for 2 seconds at 10kHz). Timing jitter is within acceptable bounds.
+TEST_TYPE: System, Performance
 
 [/GROUP]
 
@@ -219,7 +270,7 @@ PRECONDITIONS: A running `r-sim` instance.
 STEPS:
   1. Open a web browser to `http://127.0.0.1:3030/data`.
   2. Open `http://127.0.0.1:3030/graph`.
-EXPECTED_RESULTS: The `/data` endpoint displays real-time simulation data (current time, task outputs, execution times). The `/graph` endpoint displays task and dependency information.
+EXPECTED_RESULTS: The `/data` endpoint displays real-time simulation data (current time, task outputs, execution times). The `/graph` endpoint returns a JSON representation of all tasks and their data dependencies matching the loaded configuration, suitable for rendering as a causal block diagram.
 TEST_TYPE: System, Functional
 
 [TEST_CASE]
@@ -281,5 +332,50 @@ STEPS:
   1. Run `r-sim run -c invalid_io_config.toml`.
 EXPECTED_RESULTS: `r-sim` exits gracefully with an informative error message related to the I/O task initialization.
 TEST_TYPE: System, Functional
+
+[/GROUP]
+
+[GROUP]
+TITLE: Advanced Simulation Features
+
+[TEST_CASE]
+UID: TC-ADV-001
+TITLE: Verify fault injection capabilities during runtime.
+REFINES: REQ-FAULT-INJECTION
+PRECONDITIONS: A configuration file with a simulation scenario that includes a sensor task. A fault injection mechanism (e.g., API endpoint or config trigger) is available.
+STEPS:
+  1. Run `r-sim run -c fault_injection_test.toml -s 10`.
+  2. During runtime (e.g., at t=5s), inject a sensor failure fault via the provided mechanism.
+  3. Observe simulation outputs before and after fault injection.
+EXPECTED_RESULTS: Before fault injection, the simulation runs normally. After fault injection, the affected sensor outputs reflect the fault condition (e.g., stuck value, noise, or zero). Downstream tasks react accordingly.
+TEST_TYPE: System, Functional
+
+[TEST_CASE]
+UID: TC-ADV-002
+TITLE: Verify X-in-the-Loop (XiL) mode selection and interfaces.
+REFINES: REQ-XIL-SUPPORT
+PRECONDITIONS: Configuration files for MIL, SIL, and HIL modes of the same simulation scenario.
+STEPS:
+  1. Run `r-sim run -c xil_mil_test.toml -s 5` (Model-in-the-Loop).
+  2. Verify MIL mode uses purely simulated plant models.
+  3. Run `r-sim run -c xil_sil_test.toml -s 5` (Software-in-the-Loop).
+  4. Verify SIL mode integrates production software components.
+  5. (If hardware available) Run `r-sim run -c xil_hil_test.toml -s 5` (Hardware-in-the-Loop).
+  6. Verify HIL mode interfaces with real hardware I/O.
+EXPECTED_RESULTS: Each XiL mode launches with the appropriate interfaces. MIL uses simulated I/O, SIL integrates software binaries, and HIL connects to real hardware. Mode selection is clearly indicated in logs.
+TEST_TYPE: System, Integration
+
+[TEST_CASE]
+UID: TC-ADV-003
+TITLE: Verify distributed simulation across multiple networked nodes.
+REFINES: REQ-DISTRIBUTED-SIMULATION
+PRECONDITIONS: Two or more networked computing nodes with `r-sim` installed. A configuration file that distributes tasks across the nodes.
+STEPS:
+  1. Configure `r-sim` with `distributed_sim_test.toml` specifying task distribution across Node A and Node B.
+  2. Start `r-sim` on Node A as the coordinator.
+  3. Start `r-sim` on Node B as a worker.
+  4. Run the distributed simulation for 10 seconds.
+EXPECTED_RESULTS: Tasks execute on their designated nodes. Data flows correctly between nodes via network. Simulation produces consistent results matching a single-node baseline. Network latency metrics are reported.
+TEST_TYPE: System, Performance
 
 [/GROUP]

@@ -1,1 +1,8 @@
 /target
+
+# Test artifacts
+test_*_log.csv
+test_results.txt
+simulation_log.csv
+test_simulation_log.csv
+

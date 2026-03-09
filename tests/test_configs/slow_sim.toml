@@ -1,0 +1,11 @@
+[[tasks]]
+type = "Custom"
+name = "SlowTask"
+
+dependencies = []
+time_multiplier = 0.5
+
+[logging]
+log_file = "test_slow_sim_log.csv"
+log_interval_millis = 100
+logged_outputs = { }

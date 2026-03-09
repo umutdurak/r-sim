@@ -1,0 +1,26 @@
+[[tasks]]
+type = "Custom"
+name = "TaskA"
+
+[[tasks]]
+type = "Custom"
+name = "TaskB"
+
+[[dependencies]]
+from = "TaskA"
+to = "TaskB"
+type = "direct"
+data_flow = "output_to_input"
+
+[[dependencies]]
+from = "TaskB"
+to = "TaskA"
+type = "memory_block"
+data_flow = "output_to_input"
+
+time_multiplier = 1.0
+
+[logging]
+log_file = "test_causal_log.csv"
+log_interval_millis = 100
+logged_outputs = { }

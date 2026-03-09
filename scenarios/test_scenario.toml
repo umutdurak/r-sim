@@ -1,0 +1,11 @@
+[[tasks]]
+type = "Custom"
+name = "MyCustomTask"
+
+dependencies = []
+time_multiplier = 1.0
+
+[logging]
+log_file = "test_simulation_log.csv"
+log_interval_millis = 100
+logged_outputs = { }

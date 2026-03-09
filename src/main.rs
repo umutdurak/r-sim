@@ -92,9 +92,9 @@ async fn run_simulation_logic(
     }
 
     let sim_graph_arc = std::sync::Arc::new(tokio::sync::RwLock::new(framework::SimulationGraph::new()));
-    let (status_tx_main, status_rx_main) = tokio::sync::watch::channel(framework::SimulationStatus::Stopped);
+    let (status_tx_main, status_rx_main) = tokio::sync::watch::channel(framework::SimulationStatus::Running);
     let (_status_tx_web, simulation_data, server_handle, web_server_shutdown_tx) = framework::start_web_server(sim_graph_arc.clone(), status_tx_main.subscribe()).await?;
-
+    let web_server_shutdown_tx_clone = web_server_shutdown_tx.clone();
     let simulation_task = framework::run_framework(
         simulation_duration_secs,
         time_step_millis,
@@ -104,13 +104,16 @@ async fn run_simulation_logic(
         sim_graph_arc.clone(),
     );
 
-    let (simulation_result, server_result) = tokio::join!(simulation_task, server_handle);
+    // Wait for the simulation to finish first
+    let simulation_result = simulation_task.await;
 
-    // Ensure the web server is stopped after the simulation finishes
+    // Signal the web server to shut down after simulation completes
     web_server_shutdown_tx.send(framework::SimulationStatus::Stopped).ok();
-
-    // Explicitly drop status_tx_main to signal run_framework to exit
+    web_server_shutdown_tx_clone.send(framework::SimulationStatus::Stopped).ok();
     drop(status_tx_main);
+
+    // Now wait for the web server to finish gracefully
+    let server_result = server_handle.await;
 
     if let Err(e) = simulation_result {
         eprintln!("Framework error: {}", e);

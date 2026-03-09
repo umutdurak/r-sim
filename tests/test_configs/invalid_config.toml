@@ -1,0 +1,4 @@
+# This is an intentionally invalid config - missing required 'dependencies' field
+[[tasks]]
+type = "Custom"
+name = "BrokenTask"

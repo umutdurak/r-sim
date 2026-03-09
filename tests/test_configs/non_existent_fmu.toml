@@ -1,0 +1,12 @@
+[[tasks]]
+type = "Fmu"
+name = "MissingFMU"
+path = "/nonexistent/path/to/fmu.so"
+
+dependencies = []
+time_multiplier = 1.0
+
+[logging]
+log_file = "test_fmu_missing_log.csv"
+log_interval_millis = 100
+logged_outputs = { }

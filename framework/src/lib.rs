@@ -196,13 +196,22 @@ impl FmuTask {
         // ensuring it lives as long as `do_step_fn`.
         let do_step_fn = unsafe { std::mem::transmute(do_step_fn_raw) };
 
+        let mut inputs = HashMap::new();
+        inputs.insert("input_var".to_string(), 0.0);
+
+        let mut outputs = HashMap::new();
+        outputs.insert("output_var".to_string(), 0.0);
+
+        let mut parameters = HashMap::new();
+        parameters.insert("gain".to_string(), Parameter::Float(1.0));
+
         Ok(FmuTask { 
             name,
-            inputs: HashMap::new(),
-            outputs: HashMap::new(),
-            _library: library, // Assign to the new field
+            inputs,
+            outputs,
+            _library: library,
             do_step_fn,
-            parameters: HashMap::new(),
+            parameters,
         })
     }
 }
@@ -1125,7 +1134,9 @@ pub struct LoggingConfig {
 
 #[derive(Debug, Deserialize)]
 pub struct SimulationConfig {
+    #[serde(default)]
     tasks: Vec<TaskConfig>,
+    #[serde(default)]
     dependencies: Vec<DependencyConfig>,
     time_multiplier: Option<f64>,
     pub logging: Option<LoggingConfig>,
@@ -1399,11 +1410,8 @@ pub async fn start_web_server(sim_graph_arc: Arc<RwLock<SimulationGraph>>, mut s
             shutdown_rx.changed().await.ok();
             println!("Web server shutting down.");
         });
-        let server_result = timeout(Duration::from_secs(2), server).await;
-        match server_result {
-            Ok(_) => println!("Web server task finished gracefully."),
-            Err(_) => println!("Web server task timed out and was forcefully shut down."),
-        }
+        server.await;
+        println!("Web server task finished gracefully.");
         Ok::<(), FrameworkError>(())
     });
 
@@ -1428,6 +1436,7 @@ pub async fn run_framework(
         println!("run_framework: Reading config from {}", path.display());
         let config_content = fs::read_to_string(&path).await?;
         
+        let deserialized_config: SimulationConfig = toml::from_str(&config_content)?;
         deserialized_config
     };
 
@@ -1435,10 +1444,12 @@ pub async fn run_framework(
     let mut time_step = Duration::from_millis(time_step_millis_cli);
 
     // Apply time multiplier from config if present
-    // if let Some(multiplier) = config.time_multiplier {
-    //     time_step = Duration::from_secs_f64(time_step.as_secs_f64() / multiplier);
-    //     println!("run_framework: Applying time multiplier: {}. Adjusted time step: {:?}", multiplier, time_step);
-    // }
+    if let Some(multiplier) = config.time_multiplier {
+        if multiplier > 0.0 {
+            time_step = Duration::from_secs_f64(time_step.as_secs_f64() / multiplier);
+            println!("run_framework: Applying time multiplier: {}. Adjusted time step: {:?}", multiplier, time_step);
+        }
+    }
 
     let mut interval = time::interval(time_step);
     let mut current_time = Duration::from_secs(0);
@@ -1459,30 +1470,32 @@ pub async fn run_framework(
     task_factory.register_task("Custom", create_custom_task);
 
     // Populate sim_graph from config
-    // for task_config in config.tasks {
-    //     println!("run_framework: Creating task: {:?}", task_config);
-    //     let task = task_factory.create_task(task_config)?;
-    //     let task_arc = Arc::new(RwLock::new(task));
-    //     let node_index = sim_graph.add_task(task_arc.read().await.get_name(), task_arc.clone());
-    //     // Check if the task is an IoTask and store its index
-    //     if task_arc.read().await.as_any().is::<GpioTask>() ||
-    //        task_arc.read().await.as_any().is::<SerialTask>() ||
-    //        task_arc.read().await.as_any().is::<UdpTask>() ||
-    //        task_arc.read().await.as_any().is::<AnalogTask>() ||
-    //        task_arc.read().await.as_any().is::<ModbusTcpTask>() {
-    //         io_task_indices.push(node_index);
-    //     }
-    // }
+    for task_config in config.tasks {
+        println!("run_framework: Creating task: {:?}", task_config);
+        let task = task_factory.create_task(task_config)?;
+        let task_name = task.get_name();
+        let is_io = task.as_any().is::<GpioTask>() ||
+                     task.as_any().is::<SerialTask>() ||
+                     task.as_any().is::<UdpTask>() ||
+                     task.as_any().is::<AnalogTask>() ||
+                     task.as_any().is::<ModbusTcpTask>();
+        let task_arc = Arc::new(RwLock::new(task));
+        let node_index = sim_graph.add_task(task_name, task_arc.clone());
+        if is_io {
+            io_task_indices.push(node_index);
+        }
+    }
 
-    // for dep_config in config.dependencies {
-    //     println!("run_framework: Adding dependency: {:?}", dep_config);
-    //     let dep_type = match dep_config.dep_type.as_str() {
-    //         "direct" => DependencyType::Direct(dep_config.data_flow),
-    //         "memory_block" => DependencyType::MemoryBlock(dep_config.data_flow),
-    //         _ => return Err(FrameworkError::ConfigurationError(format!("Unknown dependency type: {}", dep_config.dep_type))),
-    //     };
-    //     sim_graph.add_dependency(&dep_config.from, &dep_config.to, dep_type)?;
-    // }
+    for dep_config in config.dependencies {
+        println!("run_framework: Adding dependency: {:?}", dep_config);
+        let dep_type = match dep_config.dep_type.as_str() {
+            "direct" => DependencyType::Direct(dep_config.data_flow),
+            "memory_block" => DependencyType::MemoryBlock(dep_config.data_flow),
+            _ => return Err(FrameworkError::ConfigurationError(format!("Unknown dependency type: {}", dep_config.dep_type))),
+        };
+        sim_graph.add_dependency(&dep_config.from, &dep_config.to, dep_type)?;
+    }
+
 
     let execution_order = sim_graph.get_execution_order()?;
     println!("run_framework: Execution order determined.");

@@ -1,0 +1,18 @@
+[[tasks]]
+type = "Gpio"
+name = "GPIO_Sync"
+pins = [4, 5]
+
+[[tasks]]
+type = "Udp"
+name = "UDP_Sync"
+local_addr = "127.0.0.1:9090"
+remote_addr = "127.0.0.1:9091"
+
+dependencies = []
+time_multiplier = 1.0
+
+[logging]
+log_file = "test_sync_io_log.csv"
+log_interval_millis = 100
+logged_outputs = { }

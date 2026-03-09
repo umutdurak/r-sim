@@ -1,7 +1,7 @@
 [[tasks]]
 type = "Fmu"
 name = "FMU1"
-path = "./target/debug/libfmu_test.dylib"
+path = "./target/debug/deps/libfmu_test.dylib"
 
 [[tasks]]
 type = "Gpio"
